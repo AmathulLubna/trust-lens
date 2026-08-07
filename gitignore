@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Build output
+dist/
+build/
+coverage/
+
+# Env / secrets — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# Convex local state
+.convex/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc project-specific secrets — DO NOT COMMIT
+twilio_2FA_recovery_code.txt

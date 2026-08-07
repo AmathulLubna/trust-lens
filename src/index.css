@@ -1,0 +1,264 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+
+/* DO NOT CHANGE */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Type: Inter for UI, Space Grotesk for display, mono for data */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* CHANGE VALUES FOR THEME — Trust Lens "professional blue" palette */
+:root {
+  --radius: 0.625rem;
+  --background: #f7f8fa;
+  --foreground: #16181d;
+  --card: #ffffff;
+  --card-foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #eff6ff;
+  --secondary-foreground: #1e40af;
+  --muted: #f0f1f4;
+  --muted-foreground: #5f6470;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
+  --destructive: #dc2626;
+  --border: #e3e5ea;
+  --input: #d8dbe2;
+  --ring: #3b82f6;
+  --chart-1: #2563eb;
+  --chart-2: #0ea5e9;
+  --chart-3: #14b8a6;
+  --chart-4: #f59e0b;
+  --chart-5: #10b981;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16181d;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff6ff;
+  --sidebar-accent-foreground: #1e40af;
+  --sidebar-border: #e3e5ea;
+  --sidebar-ring: #3b82f6;
+}
+
+.dark {
+  --background: #0e1015;
+  --foreground: #eceef2;
+  --card: #15171d;
+  --card-foreground: #eceef2;
+  --popover: #15171d;
+  --popover-foreground: #eceef2;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #17223a;
+  --secondary-foreground: #bfdbfe;
+  --muted: #171a21;
+  --muted-foreground: #9aa0ab;
+  --accent: #17223a;
+  --accent-foreground: #bfdbfe;
+  --destructive: #f87171;
+  --border: #262a33;
+  --input: #2c313c;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
+  --chart-2: #38bdf8;
+  --chart-3: #2dd4bf;
+  --chart-4: #fbbf24;
+  --chart-5: #34d399;
+  --sidebar: #101218;
+  --sidebar-foreground: #eceef2;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #17223a;
+  --sidebar-accent-foreground: #bfdbfe;
+  --sidebar-border: #262a33;
+  --sidebar-ring: #3b82f6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: rgba(37, 99, 235, 0.18);
+  }
+}
+
+/* ───────────────────────────────────────────────
+   Trust Lens utilities — clean surfaces, bold
+   accents, data labels.
+   ─────────────────────────────────────────────── */
+@layer utilities {
+  /* Subtle page tint — soft blue glow at the top */
+  .paper {
+    background-image: radial-gradient(
+      1000px 480px at 50% -140px,
+      rgba(37, 99, 235, 0.06),
+      transparent 62%
+    );
+  }
+  .paper-heavy {
+    background-image: radial-gradient(
+      820px 420px at 50% -120px,
+      rgba(255, 255, 255, 0.14),
+      transparent 62%
+    );
+  }
+
+  /* Plain surface (kept for API compatibility) */
+  .ledger {
+    background-image: none;
+  }
+
+  /* Kept for layout compatibility — no inner frame */
+  .double-frame {
+    position: relative;
+  }
+  .double-frame::after {
+    display: none;
+  }
+
+  /* Micro label — mono, letter-spaced, uppercase */
+  .arch-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Simple ruled divider */
+  .rule-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  .rule-divider::before,
+  .rule-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Verdict pill — clean, bold, no rotation */
+  .stamp {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border: 1.5px solid currentColor;
+    border-radius: 9999px;
+    padding: 0.2rem 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    font-size: 0.625rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  /* Tabular numerals for stat blocks */
+  .numeral {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-display);
+  }
+
+  /* Blinking typewriter caret */
+  @keyframes caret-blink {
+    0%,
+    55% {
+      opacity: 1;
+    }
+    56%,
+    100% {
+      opacity: 0;
+    }
+  }
+  .caret::after {
+    content: "▍";
+    margin-left: 1px;
+    animation: caret-blink 1s steps(1) infinite;
+    color: var(--primary);
+  }
+
+  /* Radar / scanning sweep used by the voice analyser */
+  @keyframes sweep-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .radar-sweep {
+    animation: sweep-spin 2.4s linear infinite;
+    transform-origin: 50% 50%;
+  }
+
+  @keyframes alert-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+    }
+  }
+  .alert-pulse {
+    animation: alert-pulse 1.6s ease-in-out infinite;
+  }
+}
