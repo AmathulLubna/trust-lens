@@ -12,7 +12,7 @@ Detect AI voice cloning, flag social-engineering scam patterns, and alert the ri
 [![Convex](https://img.shields.io/badge/Convex-backend-ff5c29?logo=convex&logoColor=white)](https://convex.dev)
 [![Groq](https://img.shields.io/badge/Groq-AI%20inference-f55036)](https://groq.com)
 [![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 
 </div>
 
@@ -205,7 +205,6 @@ Contributions are welcome. Please open an issue first to discuss the change, the
 
 ## License
 
-[MIT](./LICENSE)
 
 ---
 
