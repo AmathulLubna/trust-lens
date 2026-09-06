@@ -1,0 +1,313 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+
+/* DO NOT CHANGE */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Type: Inter for UI, Space Grotesk for display, mono for data */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* CHANGE VALUES FOR THEME — Trust Lens "signal" palette:
+   deep ink + electric cyan-teal. Built for a forensic
+   signal-detection product — cold, precise, alert — not
+   generic SaaS blue and not gold/silver "premium" cliché. */
+:root {
+  --radius: 0.625rem;
+  --background: #f5f6f4;
+  --foreground: #12141a;
+  --card: #ffffff;
+  --card-foreground: #12141a;
+  --popover: #ffffff;
+  --popover-foreground: #12141a;
+  --primary: #0f8f82;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf5f3;
+  --secondary-foreground: #0b6b61;
+  --muted: #eceeec;
+  --muted-foreground: #62666b;
+  --accent: #eaf5f3;
+  --accent-foreground: #0b6b61;
+  --destructive: #c5453a;
+  --border: #e0e2df;
+  --input: #d3d6d2;
+  --ring: #0f8f82;
+  --chart-1: #0f8f82;
+  --chart-2: #2d7fd6;
+  --chart-3: #c5453a;
+  --chart-4: #c98a2c;
+  --chart-5: #6a6f95;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #12141a;
+  --sidebar-primary: #0f8f82;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf5f3;
+  --sidebar-accent-foreground: #0b6b61;
+  --sidebar-border: #e0e2df;
+  --sidebar-ring: #0f8f82;
+}
+
+.dark {
+  --background: #0b0d12;
+  --foreground: #e7eae8;
+  --card: #14171f;
+  --card-foreground: #e7eae8;
+  --popover: #12151b;
+  --popover-foreground: #e7eae8;
+  --primary: #4ce0d2;
+  --primary-foreground: #06211d;
+  --secondary: #152420;
+  --secondary-foreground: #8ff0e4;
+  --muted: #171a21;
+  --muted-foreground: #8b9198;
+  --accent: #152420;
+  --accent-foreground: #8ff0e4;
+  --destructive: #ff6b5e;
+  --border: #23272f;
+  --input: #262b34;
+  --ring: #4ce0d2;
+  --chart-1: #4ce0d2;
+  --chart-2: #5b9bf2;
+  --chart-3: #ff6b5e;
+  --chart-4: #e0ab52;
+  --chart-5: #8f9ad6;
+  --sidebar: #0d0f15;
+  --sidebar-foreground: #e7eae8;
+  --sidebar-primary: #4ce0d2;
+  --sidebar-primary-foreground: #06211d;
+  --sidebar-accent: #152420;
+  --sidebar-accent-foreground: #8ff0e4;
+  --sidebar-border: #23272f;
+  --sidebar-ring: #4ce0d2;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: rgba(15, 143, 130, 0.18);
+  }
+  .dark ::selection {
+    background: rgba(76, 224, 210, 0.22);
+  }
+}
+
+/* ───────────────────────────────────────────────
+   Trust Lens utilities — clean surfaces, bold
+   accents, data labels.
+   ─────────────────────────────────────────────── */
+@layer utilities {
+  /* Subtle page tint — cold signal glow at the top */
+  .paper {
+    background-image: radial-gradient(
+      1000px 480px at 50% -140px,
+      rgba(15, 143, 130, 0.07),
+      transparent 62%
+    );
+  }
+  .dark .paper {
+    background-image: radial-gradient(
+      1100px 520px at 50% -160px,
+      rgba(76, 224, 210, 0.09),
+      transparent 60%
+    );
+  }
+  .paper-heavy {
+    background-image: radial-gradient(
+      820px 420px at 50% -120px,
+      rgba(76, 224, 210, 0.12),
+      transparent 62%
+    );
+  }
+
+  /* Plain surface (kept for API compatibility) */
+  .ledger {
+    background-image: none;
+  }
+
+  /* Kept for layout compatibility — no inner frame */
+  .double-frame {
+    position: relative;
+  }
+  .double-frame::after {
+    display: none;
+  }
+
+  /* Micro label — mono, letter-spaced, uppercase */
+  .arch-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Simple ruled divider */
+  .rule-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  .rule-divider::before,
+  .rule-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Verdict pill — clean, bold, no rotation */
+  .stamp {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border: 1.5px solid currentColor;
+    border-radius: 9999px;
+    padding: 0.2rem 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    font-size: 0.625rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  /* Tabular numerals for stat blocks */
+  .numeral {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-display);
+  }
+
+  /* Blinking typewriter caret */
+  @keyframes caret-blink {
+    0%,
+    55% {
+      opacity: 1;
+    }
+    56%,
+    100% {
+      opacity: 0;
+    }
+  }
+  .caret::after {
+    content: "▍";
+    margin-left: 1px;
+    animation: caret-blink 1s steps(1) infinite;
+    color: var(--primary);
+  }
+
+  /* Radar / scanning sweep used by the voice analyser */
+  @keyframes sweep-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .radar-sweep {
+    animation: sweep-spin 2.4s linear infinite;
+    transform-origin: 50% 50%;
+  }
+
+  @keyframes alert-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(197, 69, 58, 0.35);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(197, 69, 58, 0);
+    }
+  }
+  .alert-pulse {
+    animation: alert-pulse 1.6s ease-in-out infinite;
+  }
+  .dark .alert-pulse {
+    animation-name: alert-pulse-dark;
+  }
+  @keyframes alert-pulse-dark {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 107, 94, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(255, 107, 94, 0);
+    }
+  }
+
+  /* Fine signal-grain texture for hero/dark surfaces — reinforces the
+     "instrument" feel without being a decorative gradient blob. */
+  .grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Premium card lift on hover — used sparingly on interactive panels */
+  .lift {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -12px rgba(15, 143, 130, 0.25);
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  }
+  .dark .lift:hover {
+    box-shadow: 0 16px 40px -14px rgba(76, 224, 210, 0.22);
+  }
+}
