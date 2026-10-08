@@ -1,214 +1,41 @@
-<div align="center">
+# TrustLens web prototype — SIH26104
 
-# 🔍 Trust Lens
+TrustLens screens consented recordings and nearby microphone audio for possible synthetic speech and sensitive requests. Acoustic model outputs, transcript warnings and input reliability are separate. It does not verify caller identity, intercept cellular/WhatsApp audio, or establish fraud. No accuracy or latency benchmark is claimed.
 
-### Real-time deepfake voice & scam detection — microphone, uploads, numbers and messages
+See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for repair evidence, tests and remaining prerequisites. `docs/PRD.md`, `docs/TRD.md` and `docs/TECH_STACK.md` are historical proposals, not current feature guarantees.
 
-Detect AI voice cloning, flag social-engineering scam patterns, and alert the right people — **before anyone sends money**.
+## Current behavior
 
-[![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Convex](https://img.shields.io/badge/Convex-backend-ff5c29?logo=convex&logoColor=white)](https://convex.dev)
-[![Groq](https://img.shields.io/badge/Groq-AI%20inference-f55036)](https://groq.com)
-[![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+- Recording uploads require an authenticated account and processing consent. Audio goes through temporary Convex storage to a configured Python service. Server checks bound bytes, validate the decoded container, and limit duration to five minutes. Normal completion removes temporary files; failures remain uncertain.
+- The Python service uses a versioned Hugging Face acoustic checkpoint and local faster-whisper transcription. The acoustic output is uncalibrated. The verification-warning threshold of 0.7 is an explicit prototype policy, not a measured fraud probability. No random boosts, browser DSP authenticity scores or invented confidence are used.
+- Microphone capture sends independent six-second WAV segments. Capture transfer and processing queues are bounded. Original capture times, sequence numbers, missing coverage and finalization failures remain visible. The page must stay active; device/background behavior needs testing.
+- Transcripts are displayed for the current analysis. Retaining them in history requires an explicit checkbox, initially off. Message previews also require consent. Clearing history removes stored assessments and temporary uploads and excludes earlier in-flight completions. Already delivered email cannot be recalled.
+- English, Hindi and Hinglish request rules distinguish requests from educational warnings and negation. These finite rules can miss contextual intent and do not prove fraud. Number reports are unmoderated observations; notes remain owner-private and legitimate observations are counted separately. No unsourced reputation fixtures are active.
+- Warning email requires owner preference, member preference, a verified recipient account and the recipient's own consent. Delivery is disabled unless explicitly enabled on the server. Provider acceptance is separate from signed delivery confirmation. Transport interruption is recorded as unknown. Scripted demonstrations never generate real detection history or alerts.
 
+The website caps uploads at 18 MiB, conservatively below the documented HTTP upload limit; the service retains a 24 MiB maximum for legacy clients. See [Convex HTTP upload documentation](https://docs.convex.dev/file-storage/upload-files).
 
-</div>
+## Local setup
 
----
+Install Node.js compatible with Vite 7 (the repair was checked with Node 26.5.1), then run `npm ci`. Do not replace existing environment files or credentials.
 
-## The problem
+For a new configuration, use `.env.example` as a guide. The browser needs `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` for the same deployment. The latter is the Convex HTTP actions address, not the Vite website address. Configure Convex Auth using its existing setup workflow. Email OTP delivery additionally needs `FREEBUFF_EMAIL_API_KEY`; no usable OTP credential is bundled. Anonymous accounts can screen audio but cannot verify email alert ownership.
 
-AI voice-cloning scams are exploding across India. Using a **3-second voice clone** of a relative, fraudsters call and say:
+On the Convex server configure `WEB_ORIGINS`, `ACOUSTIC_SERVICE_URL` and `ACOUSTIC_SERVICE_TOKEN`. The service URL must be reachable by the Convex deployment over HTTPS; a laptop's localhost is not reachable from hosted Convex. Never put the shared token in a `VITE_*` variable. Backend setup and the stateless service contract are documented in `C:\Users\Admin\Desktop\Projects\New folder\trustlens-backend\WEB_INTEGRATION.md`.
 
-> *"Beta, I'm in trouble — send money right now."*
+`npm run dev` starts the website. Convex functions and generated bindings require an operator's configured development deployment; no deployment was performed during this repair. The added bindings compile locally and were exercised with `convex-test`.
 
-Elderly users are the primary victims, and until now there has been **no consumer-facing defense**. Trust Lens is a mobile-compatible web app that listens, analyzes, and intercepts these calls in real time.
+Optional email delivery needs `RESEND_API_KEY`, a verified `RESEND_FROM`, `RESEND_WEBHOOK_SECRET`, and signed Resend events directed to `/alerts/webhook` on the Convex site URL. Keep `ALERT_DELIVERY_ENABLED=false` while preparing configuration. There is no SMS, WhatsApp alert delivery, fullscreen intervention, speaker enrollment, or sensitivity calibration implemented.
 
-## What it does
+## Verification
 
-Trust Lens runs **two detection agents in parallel** on every call, then **intervenes mid-call** when both raise flags:
-
-| Agent | What it does | Where it runs |
-|---|---|---|
-| **Voice authenticity** | Measures pitch jitter, prosody flatness, and spectral rolloff — TTS/voice-clones are unnaturally steady (jitter < 1.5%) vs. human speech (3–8%) | On-device via Web Audio API + Groq cross-check |
-| **Scam-pattern behavior** | Reads the conversation for urgency language, money/OTP requests, and claimed-but-unverified relations | Groq LLM (transcribed with Groq Whisper) |
-| **Intervention** | Mid-call banner + vibration: *"Possible voice clone + urgency scam pattern detected"* — with one clear action: verify on a separate channel | In-app |
-
-### Feature tour
-
-- **🛡️ Live Guard** — *Test bench:* simulate the classic "Amma in trouble" scam call and watch both agents work in real time, or run a **live voice check** on your microphone: on-device acoustics score the voice instantly while Groq Whisper transcribes full sentences and the LLM cross-checks content automatically.
-- **🔢 Number Check** — *Screening desk:* paste any number (missed call, SMS sender, saved contact) and get a risk verdict from pattern heuristics (TRAI 140-series UCC ranges, burner-SIM repeated digits, sequential/zero-heavy lines), the shared team knowledge base, and a Groq second opinion. Every lookup is recorded.
-- **💬 Message Check** — Paste an SMS or chat message and get a verdict from heuristic signal scanning plus a Gemini (primary) / Groq (fallback) opinion, with the exact markers that drove the score.
-- **📜 History Ledger** — Every screened call and check on record: verdict, risk score, markers, duration, and opt-in transcripts — filterable and clearable in one tap.
-- **👥 Alert Circle** — A trusted team ("your family safety net"): when a call is flagged, the right people are notified automatically — with *who, when, and the verdict, never the transcript*.
-- **⚙️ Settings** — Light / dark / system theme, auto-notify for your alert circle, a link to the Privacy Policy and cookie preferences. Acoustic scoring runs in the browser; audio chunks go to Groq for transcription and are not stored; transcripts are saved only on explicit opt-in.
-- **🔒 Privacy & cookies** — `/privacy` policy page and a cookie-consent banner (essential vs. optional preference storage; no analytics or ad cookies). Edit the contact in `src/pages/Privacy.tsx`.
-
-## How the verdict is calculated
-
-```
-risk = pattern heuristics        (140-range, burner digits, sequential…)
-     + seed knowledge base       (known scam numbers shipped in-app)
-     + team reports              (shared community reporting)
-     + Groq / Gemini second opinion (calibrated, never alarmist)
-
-verdict = safe (0–39) → suspicious (40–69) → flagged (70–100)
+```powershell
+npm test
+npm run build
+npm run lint
+npm audit --audit-level=low
 ```
 
-The verdict always follows the evidence shown — no random results, no contradictions.
+The regular suite is network-free. One real-service smoke test is intentionally skipped unless opted into an isolated local service and generated speech fixture. See `tests/README.md`. Lint currently has nonblocking template/generated-file Fast Refresh warnings; no lint errors remain.
 
-## Tech stack
-
-| Layer | Choice |
-|---|---|
-| Frontend | **React 19 + TypeScript + Vite 7** |
-| Styling | **Tailwind CSS v4** + shadcn/ui + Framer Motion |
-| Backend & database | **Convex** (reactive queries, serverless mutations, zero DevOps) |
-| Auth | **Convex Auth** — email OTP + anonymous sign-in |
-| Voice analysis | **Web Audio API** (`AnalyserNode`, autocorrelation pitch tracking) — fully on-device & privacy-preserving |
-| Hosted AI | **Gemini** (message checks, primary) + **Groq** (Whisper transcription, LLM behavioral scan, message-check fallback, number-opinion classifier) |
-| Packaging | PWA manifest — installable, mobile-compatible |
-
----
-
-## Getting started
-
-### Prerequisites
-
-- [Bun](https://bun.sh) ≥ 1.1 (the project is managed with Bun)
-- A free [Convex](https://convex.dev) account (or a self-hosted Convex backend — see below)
-- A free [Gemini](https://ai.google.dev) API key and/or [Groq](https://console.groq.com) API key (for transcription + AI verdicts)
-
-### 1. Clone & install
-
-```bash
-git clone https://github.com/<your-username>/trust-lens.git
-cd trust-lens
-bun install
-```
-
-### 2. Set up Convex
-
-```bash
-bunx convex dev
-```
-
-- Log in when prompted and select/create a project.
-- This starts the backend, pushes the schema, and generates types in `src/convex/_generated/`.
-- Copy the displayed deployment URL (or grab it from the Convex dashboard).
-
-> **Prefer to run your own backend instead of Convex Cloud?** Trust Lens works
-> unmodified against a locally self-hosted Convex backend — see
-> [Self-hosting Convex](https://github.com/get-convex/convex-backend/tree/main/self-hosted)
-> for the Docker Compose setup, then point `.env.local` at your local
-> `CONVEX_SELF_HOSTED_URL` / `CONVEX_SELF_HOSTED_ADMIN_KEY`.
-
-### 3. Configure environment
-
-```bash
-cp .env.example .env.local
-```
-
-| Variable | Required | Description |
-|---|---|---|
-| `VITE_CONVEX_URL` | ✅ | Your Convex deployment URL, e.g. `https://happy-otter-123.convex.cloud` |
-| `CONVEX_SITE_URL` | ✅ | `http://localhost:5173` in dev (your deployed origin in production) |
-| `CONVEX_DEPLOYMENT` | dev | Deployment slug used by `bunx convex dev` |
-
-> Auth keys (`JWKS`, `JWT_PRIVATE_KEY`, `SITE_URL`) are auto-provisioned by
-> Convex Auth — leave them to the platform/Convex dashboard.
-
-### 4. Add the AI provider keys (backend env)
-
-The AI features read these from the **Convex environment**, not the frontend:
-
-```bash
-bunx convex env set GEMINI_API_KEY AI...
-bunx convex env set GROQ_API_KEY gsk_...
-```
-
-Without these keys the app still works — heuristics, the knowledge base, and
-team reports score every number/message — but AI transcription and LLM
-verdicts show a friendly "configure me" hint instead.
-
-### 5. Run it
-
-```bash
-bun run dev          # start the app (http://localhost:5173)
-bunx convex dev      # keep the backend running (separate terminal)
-```
-
-Open http://localhost:5173 → sign in (email OTP or anonymous) → try **Live Guard → Scenario call**, then check a number in **Number Check**.
-
-### Useful scripts
-
-| Command | What it does |
-|---|---|
-| `bun run dev` | Start the Vite dev server |
-| `bun run build` | Type-check + production build (`tsc -b && vite build`) |
-| `bun run preview` | Preview the production build |
-| `bun run lint` | ESLint across the project |
-| `bun run format` | Prettier formatting |
-| `bunx convex dev` | Run Convex backend + regenerate types |
-| `bunx convex deploy` | Deploy backend functions to production |
-
----
-
-## Project structure
-
-```
-src/
-├── components/
-│   ├── dashboard/        # Overview, LiveGuard, MessageCheck, NumberCheck, History, Settings
-│   └── ui/               # shadcn/ui primitives
-├── convex/               # Backend — schema, auth, actions, mutations, queries
-│   ├── analyze.ts        # Groq Whisper transcription + LLM verdict ("use node" actions)
-│   ├── messageCheck.ts   # Message screening: Gemini (primary) → Groq (fallback)
-│   ├── numberLookup.ts   # Number screening: heuristics + seed KB + reports + Groq
-│   ├── calls.ts          # Call ledger CRUD
-│   ├── circle.ts         # Alert circle CRUD
-│   ├── numbers.ts        # Number reports + check history
-│   ├── messages.ts       # Message check history + signal scoring
-│   ├── alerts.ts         # Circle notification on flagged verdicts
-│   ├── settings.ts       # Per-user protection settings
-│   └── schema.ts         # callLogs, trustedCircle, userSettings, numberReports, numberChecks, messageChecks
-├── hooks/                # use-auth, use-mobile
-├── lib/                  # numbers.ts, messages.ts, trustlens.ts, gemini.ts, groq.ts, voice-analysis.ts
-└── pages/                # Landing, Auth, Dashboard, NotFound
-```
-
----
-
-## Security notes before you push
-
-- `.env.local` holds your Convex deployment URL — fine for local dev, but
-  never commit it. It's already in `.gitignore`.
-- Real API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`) live only in the Convex
-  environment (`bunx convex env set …`), never in the repo or the client
-  bundle.
-- Double-check for any personal recovery codes, credentials, or other
-  one-off files sitting in the project root before your first commit —
-  they won't be caught by `.gitignore` unless you added them there.
-
-## Roadmap
-
-- [x] MVP — live voice check, number screening desk, message check, call ledger, alert circle
-- [ ] **Phone call interception** — Android call-screen audio tap (not implemented; today screening uses the microphone or an uploaded file)
-- [ ] SMS notifications for the trusted circle
-- [ ] Hosted on-device classifier relay (Groq) for borderline voices
-- [ ] Native Android app
-
-## Contributing
-
-Contributions are welcome. Please open an issue first to discuss the change, then submit a PR. Keep it simple, keep it typed.
-
-## License
-
-
----
-
-<div align="center">
-<sub>Built to protect the ones who raised us. ❤️</sub>
-</div>
+For fixture-only browser checks run `npm run test:ui` and open `http://127.0.0.1:5174/tests/ui/index.html`. The harness visibly labels mocked responses and is excluded from the production entry point. It is not an authentication or production-service test.

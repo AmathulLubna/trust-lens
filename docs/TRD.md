@@ -1,3 +1,5 @@
+> Historical proposal. Features, provider choices and numerical claims below are not current guarantees. See README.md and IMPLEMENTATION_STATUS.md for implemented behavior.
+
 # Trust Lens — Technical Requirements Document (TRD)
 
 **Version:** 1.0 · **Status:** Approved for build · **Date:** August 2026

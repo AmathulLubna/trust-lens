@@ -1,3 +1,5 @@
+> Historical proposal. Features, provider choices and numerical claims below are not current guarantees. See README.md and IMPLEMENTATION_STATUS.md for implemented behavior.
+
 # Trust Lens — Tech Stack Decision Record
 
 **Date:** August 2026 · **Decision:** Mobile-compatible **web app** (per product decision), PWA-ready, with a documented Android phase-2 path.
