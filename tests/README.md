@@ -9,28 +9,26 @@ Use only generated speech in a local service with a disposable database and test
 ```powershell
 Add-Type -AssemblyName System.Speech
 $fixtureSpeaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$fixtureSpeaker.SetOutputToWaveFile("C:\Users\Admin\Desktop\Projects\New folder\trustlens-backend\tests\generated-speech.wav")
+$fixtureSpeaker.SetOutputToWaveFile("D:\trust-lens-main\output\generated-speech.wav")
 $fixtureSpeaker.Speak("This is generated test speech for TrustLens. Please verify sensitive requests through a saved contact.")
 $fixtureSpeaker.Dispose()
 ```
 
-Start the Python service from its repository in another terminal using a working Python 3.12 environment. Preserve existing environment files:
+Start the independent website service from `D:\trust-lens-main\services\acoustic` after its setup (see its README). Use only website credentials; never run the app backend for these checks:
 
 ```powershell
-$env:ACOUSTIC_SERVICE_TOKEN="regression-only-token"
-$env:TRUSTLENS_DB_PATH="$env:TEMP\trustlens-repair-local.db"
-$env:TRUSTLENS_SKIP_WARMUP="true"
-# Set these only if the required checkpoints are already cached:
+$env:TRUSTLENS_WEB_SERVICE_TOKEN="regression-only-token"
+# Set only when public checkpoints already exist in this website's own model cache:
 $env:HF_HUB_OFFLINE="1"
 $env:TRANSFORMERS_OFFLINE="1"
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8765
+.\.venv\Scripts\python.exe -m uvicorn web_acoustic.main:app --host 127.0.0.1 --port 8876
 ```
 
 Run from the web repository:
 
 ```powershell
 $env:TRUSTLENS_LOCAL_E2E="1"
-$env:TRUSTLENS_GENERATED_WAV="C:\Users\Admin\Desktop\Projects\New folder\trustlens-backend\tests\generated-speech.wav"
+$env:TRUSTLENS_GENERATED_WAV="D:\trust-lens-main\output\generated-speech.wav"
 npx vitest run tests/local-service.test.ts
 Remove-Item Env:TRUSTLENS_LOCAL_E2E, Env:TRUSTLENS_GENERATED_WAV
 ```
@@ -39,7 +37,7 @@ It checks an authenticated `convex-test` binary upload, a real local acoustic/AS
 
 ## Browser harness
 
-Run `npm run test:ui`, open `http://127.0.0.1:5174/tests/ui/index.html`, and use the visible fixture selector. It imports production screen components but replaces Convex hooks, authentication and upload responses. It never contacts the acoustic or email service. These fixtures are clearly labeled and are excluded from the production entry point.
+Run `npm run test:ui`, open `the printed server URL followed by `/tests/ui/index.html``, and use the visible fixture selector. It imports production screen components but replaces Convex hooks, authentication and upload responses. It never contacts the acoustic or email service. These fixtures are clearly labeled and are excluded from the production entry point.
 
 The repair exercised Edge with Playwright CLI, using an oscillator-backed `MediaStream` in place of a physical microphone. Checks covered:
 

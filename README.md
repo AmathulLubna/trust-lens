@@ -1,5 +1,3 @@
-> 8 October follow-up: the main build now includes `/demo/index.html`, linked from Live Guard. The standalone build outputs `dist-controlled-demo`. Controlled calls support Auto/Hindi/English and operator-configured short-lived TURN credentials. See the local implementation handoff and shared backend `LIVE_DEMO.md`; no relay or cloud deployment is implied.
-
 # TrustLens web prototype — SIH26104
 
 TrustLens screens consented recordings and nearby microphone audio for possible synthetic speech and sensitive requests. Acoustic model outputs, transcript warnings and input reliability are separate. It does not verify caller identity, intercept cellular/WhatsApp audio, or establish fraud. No accuracy or latency benchmark is claimed.
@@ -15,7 +13,7 @@ See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for repair evidence, te
 - English, Hindi and Hinglish request rules distinguish requests from educational warnings and negation. These finite rules can miss contextual intent and do not prove fraud. Number reports are unmoderated observations; notes remain owner-private and legitimate observations are counted separately. No unsourced reputation fixtures are active.
 - Warning email requires owner preference, member preference, a verified recipient account and the recipient's own consent. Delivery is disabled unless explicitly enabled on the server. Provider acceptance is separate from signed delivery confirmation. Transport interruption is recorded as unknown. Scripted demonstrations never generate real detection history or alerts.
 
-The website caps uploads at 18 MiB, conservatively below the documented HTTP upload limit; the service retains a 24 MiB maximum for legacy clients. See [Convex HTTP upload documentation](https://docs.convex.dev/file-storage/upload-files).
+The website caps uploads at 18 MiB, conservatively below the documented HTTP upload limit; the independent website service also enforces an 18 MiB maximum. See [Convex HTTP upload documentation](https://docs.convex.dev/file-storage/upload-files).
 
 ## Local setup
 
@@ -23,7 +21,7 @@ Install Node.js compatible with Vite 7 (the repair was checked with Node 26.5.1)
 
 For a new configuration, use `.env.example` as a guide. The browser needs `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` for the same deployment. The latter is the Convex HTTP actions address, not the Vite website address. Configure Convex Auth using its existing setup workflow. Email OTP delivery additionally needs `FREEBUFF_EMAIL_API_KEY`; no usable OTP credential is bundled. Anonymous accounts can screen audio but cannot verify email alert ownership.
 
-On the Convex server configure `WEB_ORIGINS`, `ACOUSTIC_SERVICE_URL` and `ACOUSTIC_SERVICE_TOKEN`. The service URL must be reachable by the Convex deployment over HTTPS; a laptop's localhost is not reachable from hosted Convex. Never put the shared token in a `VITE_*` variable. Backend setup and the stateless service contract are documented in `C:\Users\Admin\Desktop\Projects\New folder\trustlens-backend\WEB_INTEGRATION.md`.
+On the Convex server configure `WEB_ORIGINS`, `ACOUSTIC_SERVICE_URL` and `ACOUSTIC_SERVICE_TOKEN`. The service URL must be reachable by the Convex deployment over HTTPS; a laptop's localhost is not reachable from hosted Convex. Never put the shared token in a `VITE_*` variable. Use the separate service under `services/acoustic`; see [its setup guide](services/acoustic/README.md). Do not point the website at the Android/app backend or reuse its credentials.
 
 `npm run dev` starts the website. Convex functions and generated bindings require an operator's configured development deployment; no deployment was performed during this repair. The added bindings compile locally and were exercised with `convex-test`.
 
@@ -40,4 +38,12 @@ npm audit --audit-level=low
 
 The regular suite is network-free. One real-service smoke test is intentionally skipped unless opted into an isolated local service and generated speech fixture. See `tests/README.md`. Lint currently has nonblocking template/generated-file Fast Refresh warnings; no lint errors remain.
 
+This website project belongs entirely in `D:\trust-lens-main`. Its Convex backend, acoustic service, credentials and runtime storage are independent of the app project. See [PROJECT_BOUNDARIES.md](PROJECT_BOUNDARIES.md).
+
 For fixture-only browser checks run `npm run test:ui` and open `http://127.0.0.1:5174/tests/ui/index.html`. The harness visibly labels mocked responses and is excluded from the production entry point. It is not an authentication or production-service test.
+
+If port 5174 is occupied, the fixture server now chooses a free port and prints it. You can also run `npm run test:ui -- --port 5176`; use the printed port followed by `/tests/ui/index.html`.
+
+Optional controlled peer-call demonstration: `npm run demo`, open `/demo/index.html` on its printed URL. Its separate website service defaults to `http://127.0.0.1:8876`. The demo is disabled on that service until an operator provisions three independent website-only participant/verifier credentials. It cannot use the app backend. No transaction occurs and speaker verification remains unavailable.
+
+Start the website-only Python API with `npm run service:web` after its independent environment setup. The fixture harness works without that API, credentials or external services. Real authenticated recording analysis still requires a configured **website** Convex deployment and a website acoustic endpoint reachable from it.

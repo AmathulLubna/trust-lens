@@ -6,7 +6,15 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default tseslint.config(
-  { ignores: ["dist", "dist-controlled-demo"] },
+  {
+    ignores: [
+      "dist",
+      "dist-controlled-demo",
+      ".checkpoints/**",
+      "services/acoustic/.venv/**",
+      "services/acoustic/.runtime/**",
+    ],
+  },
   {
     extends: [
       js.configs.recommended,

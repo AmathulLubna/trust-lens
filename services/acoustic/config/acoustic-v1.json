@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "trustlens-acoustic-v1",
+  "model": "MelodyMachine/Deepfake-audio-detection-V2",
+  "revision": "de3cde5a29c449bb5268814e421b46bf6ebdcd72",
+  "labelMapping": {"fake": "synthetic", "real": "bona_fide"},
+  "sampleRate": 16000,
+  "windowSec": 4.0,
+  "hopSec": 2.0,
+  "minWindowSec": 1.0,
+  "silenceRms": 0.004,
+  "maxClippedFraction": 0.05,
+  "aggregation": "mean-window-output-v1",
+  "threshold": 0.7,
+  "thresholdStatus": "prototype_uncalibrated",
+  "seed": 26104,
+  "device": "cpu"
+}

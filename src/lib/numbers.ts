@@ -11,6 +11,7 @@ import type { Verdict } from "./trustlens";
 export const REPORT_CATEGORIES = [
   { value: "scam-call", label: "Scam / fraud call" },
   { value: "voice-clone", label: "Voice-clone attempt" },
+  { value: "whatsapp", label: "WhatsApp scam" },
   { value: "sms", label: "SMS phishing" },
   { value: "telemarketing", label: "Telemarketing / spam" },
   { value: "legit", label: "Legitimate interaction (unverified report)" },

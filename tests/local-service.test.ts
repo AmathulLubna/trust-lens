@@ -7,7 +7,7 @@ const modules = import.meta.glob("../src/convex/**/*.{ts,js}");
 it.skipIf(!process.env.TRUSTLENS_LOCAL_E2E)(
   "local generated speech: binary upload -> real Python detector/ASR -> persisted separated assessment -> deletion",
   async () => {
-    vi.stubEnv("ACOUSTIC_SERVICE_URL", "http://127.0.0.1:8765");
+    vi.stubEnv("ACOUSTIC_SERVICE_URL", "http://127.0.0.1:8876");
     vi.stubEnv("ACOUSTIC_SERVICE_TOKEN", "regression-only-token");
     vi.stubEnv("ALERT_DELIVERY_ENABLED", "false");
     try {

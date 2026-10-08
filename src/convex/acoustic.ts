@@ -78,7 +78,10 @@ export const analyze = action({
           throw new Error(
             `Acoustic service rejected analysis (${response.status})`,
           );
-        result = assess(serviceResultSchema.parse(await response.json()));
+        const payload = await response.json();
+        if (payload?.service !== "trustlens-web-acoustic-v1")
+          throw new Error("Configure the separate website acoustic service");
+        result = assess(serviceResultSchema.parse(payload));
       }
     } catch {
       message =

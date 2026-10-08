@@ -1,0 +1,27 @@
+{
+  "description": "Independent website-only fork of acoustic and optional controlled-demo modules; no Android case API/database/user storage copied. Credentials and model files are excluded. Imports and environment names are isolated.",
+  "sourceFilesSha256": {
+    "transport.py": "6ceec5752a4e585f18d2334e3a371ed71901f5b4dcfe872ced42411b6c2af673",
+    "worker_deadline.py": "c1a949a9c16d2c3139052340e1f5d8377c5ed8e432472f1da45c5c1feb4c10a6",
+    "worker_live.py": "27928415fd49b59dbbcf3212f16308b1f7a17a2c18d16eb45967b4ab6c39340f",
+    "routers/analyze.py": "b92e1a7dd2062db822fcf31b69b74a789a0e5930db255696196caa98881976b8",
+    "pipeline/transcription.py": "530bf1059c46cdf44bf198cb2944aedebdbdb3a8cd5b8f7cdf39f67a46a7c3bf",
+    "config.py": "97b71612ebffc181df771d4045466c0e24ad560595023d6d94e8410e01f1752b",
+    "pipeline/voice_detection.py": "ed49a561a63b301156eba0b8d87f539d8e048bfd2a2d74381fe740b4f6b5705c",
+    "detector_config.py": "fb9c1787d44de065444a4674ca3b4d91b3aa3591d7c4820d5de0607671a74335",
+    "security.py": "1a3bbfc4d12ca1e57b7dce33524cfde64a0989165156027fe7e81331865fcd19",
+    "storage_paths.py": "47f8721777c2f3a6733cbae164cde6aba3226bab169e799b600491f6d094251d",
+    "audio_ingress.py": "43b804cf65023dc8fadee8702ce94cd952cf12f896cdc326e1bba11cf09df531",
+    "pipeline/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worker_analyze.py": "a5d478f63548b6bfd01858f42a64564a3cb36e25b64da2e74346cbc6492d7732",
+    "routers/live_demo.py": "eda24f784ff5a87172a7bb0fe6e3b05555eb34bb4a6bb1114ddc4ea592c3dae7",
+    "ice_config.py": "f6309f007c50077f368391b28b804778350146e17ad48b606d43def858620eda",
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "live_context.py": "d708f3948a1f538738d95fdaf056a3d6a27302516190c4af22fff7041767d18d",
+    "pipeline/local_scam_detector.py": "eecbbd453c70ff8328634422f0289062e90b566ef5fa64f9b6f28d62c526425f",
+    "live_spool.py": "8d7494a899c965eb2ac1856b1dd53ed44b2659159db7ad03c649c141e1dadfb5",
+    "live_worker.py": "662898eddfee5117061194eac57eb7726bcde115bb2f21e13f506152b353243f",
+    "process_control.py": "217ca74e8e52f5f650a12de414b4049e7d8773acb1d0c78c6102bb6f5b13668c",
+    "live_policy.py": "e695ae7a4f6087d51262e53e8dc8c6e4922c959a1d2d4365b16e2da87a2022dd"
+  }
+}

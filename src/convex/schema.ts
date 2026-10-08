@@ -64,7 +64,11 @@ const schema = defineSchema(
       userId: v.id("users"),
       callerName: v.optional(v.string()),
       callerNumber: v.optional(v.string()),
-      channel: v.union(v.literal("phone"), v.literal("unknown")),
+      channel: v.union(
+        v.literal("phone"),
+        v.literal("whatsapp"),
+        v.literal("unknown"),
+      ),
       startedAt: v.number(),
       endedAt: v.optional(v.number()),
       durationSec: v.optional(v.number()),

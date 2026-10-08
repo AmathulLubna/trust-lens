@@ -1,6 +1,6 @@
 import { pcmWav } from '../lib/audio-upload';
 import { RemoteQueue, type RemoteWindow } from './queue';
-import { resultSchema,liveStateSchema,safeEndpoint,iceConfigurationSchema,languageSchema,type DemoLanguage,type LiveState,type Measurement } from './contract';
+import { assertWebsiteService,resultSchema,liveStateSchema,safeEndpoint,iceConfigurationSchema,languageSchema,type DemoLanguage,type LiveState,type Measurement } from './contract';
 type CallRole='caller'|'recipient';
 interface Events {state:(state:LiveState)=>void;measurement:(measurement:Measurement)=>void;message:(message:string)=>void;tracks:(local:string[],remote:string[])=>void;ended:()=>void}
 export class ControlledCall {
@@ -33,6 +33,7 @@ export class ControlledCall {
     return response.json();
   }
   async start(file:File|null,audioElement:HTMLAudioElement){
+    await assertWebsiteService(this.endpoint);
     if(!isSecureContext)throw new Error('A secure browser context is required');
     const iceConfiguration=iceConfigurationSchema.parse(await this.request(`/demo/sessions/${this.sessionId}/ice`));
     if(this.stopped)return;

@@ -1,6 +1,6 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {RemoteQueue,type RemoteWindow} from '../src/live-demo/queue';
-import {safeEndpoint,liveStateSchema,latencySummary,iceConfigurationSchema,languageSchema} from '../src/live-demo/contract';
+import {assertWebsiteService,safeEndpoint,liveStateSchema,latencySummary,iceConfigurationSchema,languageSchema} from '../src/live-demo/contract';
 const window=(sequence:number):RemoteWindow=>({sequence,mediaStartMs:sequence*4000,durationMs:4000,firstSampleAt:0,samples:new Float32Array(10),sampleRate:16000});
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 describe('controlled remote-audio contract',()=>{
@@ -46,4 +46,14 @@ describe('controlled remote-audio contract',()=>{
       {sequence:1,mediaStartMs:4000,durationMs:4000,status:'analyzed',acousticStatus:'insufficient_audio',qualityStatus:'insufficient',receiverLatencyMs:4100,queueMs:0}]);
     expect(report.n).toBe(1);expect(report.p95).toBe(7000);expect(latencySummary([]).p50).toBeNull();
   });
+});
+
+it('checks website identity without sending credentials to an unrelated service', async()=>{
+  const fetchFixture=vi.fn(async()=>Response.json({project:'app-backend'}));
+  vi.stubGlobal('fetch',fetchFixture);
+  try {
+    await expect(assertWebsiteService('http://127.0.0.1:8876')).rejects.toThrow('separate website service');
+    expect(fetchFixture.mock.calls[0]).toHaveLength(2);
+    expect((fetchFixture.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined();
+  } finally {vi.unstubAllGlobals();}
 });

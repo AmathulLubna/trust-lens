@@ -1,5 +1,5 @@
 {
-  "name": "vite-template",
+  "name": "trustlens-web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:ui": "vite --config tests/ui/vite.config.ts",
     "demo": "vite --config demo/vite.config.ts",
-    "build:demo": "tsc -b && vite build --config demo/vite.config.ts"
+    "build:demo": "tsc -b && vite build --config demo/vite.config.ts",
+    "service:web": "node scripts/start-web-service.mjs"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.96",

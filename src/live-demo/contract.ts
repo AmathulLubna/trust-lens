@@ -41,3 +41,10 @@ export function safeEndpoint(value:string):string {
   if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw new Error('HTTPS is required except on this computer');
   return url.origin;
 }
+
+export async function assertWebsiteService(endpoint: string): Promise<void> {
+  const response = await fetch(`${safeEndpoint(endpoint)}/health`, { signal: AbortSignal.timeout(5000) });
+  const health = response.ok ? await response.json() : null;
+  if (health?.project !== "trustlens-web" || health?.service !== "trustlens-web-acoustic-v1")
+    throw new Error("Use the separate website service from D:\\trust-lens-main; credentials were not sent.");
+}

@@ -1,5 +1,5 @@
 async (page) => {
-  const tag = await page.addScriptTag({path:'C:/Users/Admin/.codex/trustlens-live-demo-test-bootstrap.js'});
+  const tag = await page.addScriptTag({path:'D:/trust-lens-main/.checkpoints/live-demo-test-bootstrap.js'});
   const credentials = await page.evaluate(()=>{const value=globalThis.__trustlensTestCredentials;delete globalThis.__trustlensTestCredentials;return value;});
   await tag.evaluate(element=>element.remove());
   await page.getByLabel('Personal demo credential').fill(credentials.caller);

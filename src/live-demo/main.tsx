@@ -1,12 +1,12 @@
 import { StrictMode,useRef,useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ControlledCall } from './call';
-import { safeEndpoint,latencySummary,type DemoLanguage,type LiveState,type Measurement } from './contract';
+import { assertWebsiteService,safeEndpoint,latencySummary,type DemoLanguage,type LiveState,type Measurement } from './contract';
 import './style.css';
 
 interface ApprovalView {details:{approvalId:string;beneficiary:string;amount:number;warningRevision:number};requestDigest:string;status:string;receipt?:string}
 function App(){
-  const [endpoint,setEndpoint]=useState(import.meta.env.VITE_LIVE_ANALYSIS_ORIGIN || (['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'http://127.0.0.1:8766':''));const [token,setToken]=useState('');
+  const [endpoint,setEndpoint]=useState(import.meta.env.VITE_LIVE_ANALYSIS_ORIGIN || (['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'http://127.0.0.1:8876':''));const [token,setToken]=useState('');
   const [role,setRole]=useState<'caller'|'recipient'|'verifier'>('caller');const [consent,setConsent]=useState(false);
   const [language,setLanguage]=useState<DemoLanguage>('auto');
   const [sid,setSid]=useState('');const [invite,setInvite]=useState('');const [file,setFile]=useState<File|null>(null);
@@ -18,6 +18,7 @@ function App(){
   const [approval,setApproval]=useState<ApprovalView|null>(null);const [receipt,setReceipt]=useState('');const [confirmed,setConfirmed]=useState(false);
   const call=useRef<ControlledCall|null>(null);const audio=useRef<HTMLAudioElement>(null);
   async function request(path:string,method='GET',body?:unknown){
+    await assertWebsiteService(safeEndpoint(endpoint));
     const response=await fetch(safeEndpoint(endpoint)+path,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(65000)});
     if(!response.ok){const error=await response.json().catch(()=>({detail:'Request failed'}));throw new Error(`${error.detail} (${response.status})`);}
     return response.json();
@@ -43,7 +44,7 @@ function App(){
     const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='trustlens-live-measurements.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   return <main>
-    <header><span className="tag">TrustLens · SIH26104</span><h1>Controlled two-party call</h1><p>Call another consenting demo participant through this page. Analysis receives the remote caller’s audio in the recipient’s browser and sends short windows to your local Python server.</p></header>
+    <header><span className="tag">TrustLens · SIH26104</span><h1>Controlled two-party call</h1><p>Call another consenting demo participant through this page. Analysis receives the remote caller’s audio in the recipient’s browser and sends short windows to the separate website acoustic service.</p></header>
     <aside>This demo supports WebRTC calls made here. Cellular and WhatsApp interception are unavailable. Acoustic output is uncalibrated; synthetic speech alone does not establish fraud. Speaker comparison is unimplemented and cannot authorize a request.</aside>
     <section><h2>Connect</h2><div className="grid">
       <label>Analysis server<input aria-label="Local analysis server" value={endpoint} onChange={e=>setEndpoint(e.target.value)} disabled={active||busy}/></label>

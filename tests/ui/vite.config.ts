@@ -6,9 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: { entries: ["tests/ui/index.html"] },
   define: {
-    "import.meta.env.VITE_CONVEX_SITE_URL": JSON.stringify(
-      "http://localhost:5174",
-    ),
+    "import.meta.env.VITE_CONVEX_SITE_URL": JSON.stringify("/__local-fixture"),
   },
   resolve: {
     alias: {
@@ -17,5 +15,5 @@ export default defineConfig({
       "@convex-dev/auth/react": path.resolve("tests/ui/mock-auth.ts"),
     },
   },
-  server: { host: "127.0.0.1", port: 5174, strictPort: true },
+  server: { host: "127.0.0.1", port: 5174, strictPort: false },
 });

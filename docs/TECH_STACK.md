@@ -16,7 +16,7 @@
 | Auth | **Convex Auth** — email OTP + anonymous guest | Template-native; no extra service needed for MVP |
 | Voice analysis (demo) | **Web Audio API** (`AnalyserNode`, autocorrelation pitch tracking) | Real, in-browser, privacy-preserving; no SDK needed |
 | Hosted AI (Phase 2) | **Groq** — Whisper transcription + lightweight voice classifier + LLM behavioral scan | Exact match to the pitch: <2 s fast inference, cheap, on-device-heavy design |
-| Notifications (Phase 2) | SMS provider for trusted circle | Reaches elderly users' family where they actually are |
+| Notifications (Phase 2) | SMS / WhatsApp Business API for trusted circle | Reaches elderly users' family where they actually are |
 | Packaging | PWA manifest (already present) → installable; Android wrapper in Phase 2 | Mobile-compatible today, app-store path later |
 
 ## 2. Why This Stack (per requirement)
@@ -36,7 +36,7 @@
 | Service | Purpose | Key(s) needed |
 |---|---|---|
 | Groq | Whisper + classifier + LLM | `GROQ_API_KEY` (via project Keys UI) |
-| SMS provider | trusted-circle alerts | provider API key |
+| SMS/WhatsApp provider | trusted-circle alerts | provider API key |
 
 Gravity Index was consulted to select the above; integration will be wired through
 Convex actions reading `process.env`, per Freebuff conventions.

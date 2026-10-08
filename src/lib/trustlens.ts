@@ -9,7 +9,7 @@ export type Verdict =
   | "insufficient_audio";
 export type FlagKind = "voice" | "behavior" | "contact";
 export type Severity = "info" | "warning" | "critical";
-export type Channel = "phone" | "unknown";
+export type Channel = "phone" | "whatsapp" | "unknown";
 
 export interface ScamFlag {
   id: string;

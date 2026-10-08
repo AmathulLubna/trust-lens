@@ -8,3 +8,11 @@ dist-controlled-demo/
 *.log
 output/
 .playwright-cli/
+
+# Website-only local backups and service runtime
+.checkpoints/
+services/acoustic/.venv/
+services/acoustic/.runtime/
+services/acoustic/.env.web
+__pycache__/
+*.pyc

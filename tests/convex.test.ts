@@ -109,6 +109,7 @@ it("preserves trained acoustic outputs through service response and consent-cont
       async () =>
         new Response(
           JSON.stringify({
+            service: "trustlens-web-acoustic-v1",
             acoustic: {
               status: "available",
               score: 0.21,
@@ -540,4 +541,50 @@ it("keeps older GitHub settings records usable while applying repaired preferenc
     bannerAlert: false,
     vibrationAlert: false,
   });
+});
+
+it("rejects a response from an unrelated/mobile acoustic service and retains uncertainty", async () => {
+  const { a, t } = await setup();
+  vi.stubEnv("ACOUSTIC_SERVICE_URL", "https://unrelated.example.invalid");
+  vi.stubEnv("ACOUSTIC_SERVICE_TOKEN", "test-only");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        acoustic: {
+          status: "available",
+          score: 0.01,
+          models: ["unrelated fixture"],
+          windows: 1,
+        },
+        reliability: {
+          status: "usable",
+          durationSec: 6,
+          rms: 0.1,
+          clippedFraction: 0,
+        },
+        contextStatus: "available",
+        transcript: "Hello",
+      }),
+    ),
+  );
+  const upload = await a.fetch("/audio/upload", {
+    method: "POST",
+    body: "fixture",
+    headers: { "X-Filename": "test.wav" },
+  });
+  const { storageId } = await upload.json();
+  const { result } = await a.action(api.acoustic.analyze, {
+    storageId,
+    eventId: "separate-website-test",
+    source: "upload",
+    retainTranscript: false,
+    language: "en",
+  });
+  expect(result.outcome).toBe("analysis_unavailable");
+  expect(result.acoustic.score).toBeNull();
+  expect((await a.query(api.calls.list, {}))[0].verdict).toBe(
+    "analysis_unavailable",
+  );
+  expect(await t.run((ctx) => ctx.storage.get(storageId))).toBeNull();
 });
