@@ -1,7 +1,7 @@
 {
-  "name": "Trust Lens — Deepfake Voice Detection",
+  "name": "Trust Lens \u2014 Deepfake Voice Detection",
   "short_name": "Trust Lens",
-  "description": "Deepfake voice detection and scam alerts for your team. Scan calls and voice notes for AI-generated speech and flag scam patterns in real time.",
+  "description": "Consented recording and microphone screening with explicit uncertainty and independent verification guidance.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f6f7fb",

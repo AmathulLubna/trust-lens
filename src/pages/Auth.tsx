@@ -148,15 +148,15 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-white/70">
                 Trust Lens scans calls and voice notes for AI-generated speech,
-                flags scam patterns in real time, and alerts your team before
-                anyone acts.
+                shows request-pattern warnings and uncertainty so you can verify
+                before anyone acts.
               </p>
             </div>
             <div className="relative space-y-3 text-sm text-white/70">
               {[
-                "Voice authenticity in under 2 seconds",
-                "Scam-pattern detection in parallel",
-                "One-tap alerts to your circle",
+                "Uncalibrated acoustic model outputs",
+                "Contextual request warnings",
+                "Verified-recipient email preferences",
               ].map((item) => (
                 <p key={item} className="flex items-center gap-2.5">
                   <span className="flex size-5 items-center justify-center rounded-full bg-[#4ce0d2]/15 text-[10px] font-bold text-[#4ce0d2]">

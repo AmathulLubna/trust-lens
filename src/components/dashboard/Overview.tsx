@@ -2,12 +2,7 @@ import { Button } from "@/components/ui/button";
 import { ChannelTag, VerdictStamp } from "@/components/dashboard/shared";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  fmtClock,
-  fmtDate,
-  todayLong,
-  VERDICT_META,
-} from "@/lib/trustlens";
+import { fmtClock, fmtDate, todayLong, VERDICT_META } from "@/lib/trustlens";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
@@ -33,8 +28,12 @@ export default function Overview({
   const circle = useQuery(api.circle.list);
   const settings = useQuery(api.settings.get);
 
-  const total = logs?.length ?? 0;
-  const flagged = logs?.filter((l) => l.verdict === "flagged").length ?? 0;
+  const realLogs = logs?.filter(
+    (l) => l.source === "upload" || l.source === "microphone",
+  );
+  const total = realLogs?.length ?? 0;
+  const flagged =
+    realLogs?.filter((l) => l.verdict === "suspicious").length ?? 0;
   const firstName = (user?.name ?? "friend").split(" ")[0];
 
   const statBlocks = [
@@ -47,23 +46,23 @@ export default function Overview({
     },
     {
       icon: Siren,
-      label: "Scam attempts",
+      label: "Verification warnings",
       value: String(flagged),
-      sub: "flagged & intercepted",
+      sub: "independent verification advised",
       tint: "bg-red-50 text-red-600",
     },
     {
       icon: Users,
       label: "Circle members",
       value: String(circle?.length ?? 0),
-      sub: "alerted on flags",
+      sub: "delivery requires verified consent",
       tint: "bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400",
     },
     {
       icon: AudioLines,
-      label: "Time to verdict",
-      value: "< 2s",
-      sub: "target on live audio",
+      label: "Input coverage",
+      value: "Visible",
+      sub: "gaps and failures retained",
       tint: "bg-emerald-50 text-emerald-600",
     },
   ];
@@ -82,7 +81,7 @@ export default function Overview({
         </div>
         <span className="stamp self-start text-emerald-600 sm:self-auto">
           <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-          Guard active
+          Ready to start
         </span>
       </div>
 
@@ -104,10 +103,16 @@ export default function Overview({
             </span>
             <div>
               <p className="font-display text-lg font-semibold">
-                {settings ? "Screening is on" : "Loading your guard…"}
+                {settings
+                  ? "Screening available on request"
+                  : "Loading your guard…"}
               </p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
-                Live voice · Number check · Message check
+                Microphone audio and consented recording uploads
+                <span className="text-white/45">
+                  {" "}
+                  · start screening from this workspace
+                </span>
               </p>
             </div>
           </div>
@@ -216,7 +221,7 @@ export default function Overview({
         <div className="rounded-2xl border border-border bg-card">
           <div className="border-b border-border/80 bg-muted/40 px-5 py-3">
             <span className="arch-label text-muted-foreground">
-              The three agents
+              Screening flow
             </span>
           </div>
           <div className="divide-y divide-border/70">
@@ -224,22 +229,22 @@ export default function Overview({
               {
                 n: "01",
                 icon: AudioLines,
-                t: "Listen",
-                d: "Live mic audio in 400 ms windows; acoustics scored in your browser.",
+                t: "Capture",
+                d: "Nearby microphone audio in six-second segments, analyzed by the configured service.",
                 tint: "bg-primary/10 text-primary",
               },
               {
                 n: "02",
                 icon: Brain,
                 t: "Analyze",
-                d: "Voice agent scores synthetic artifacts; behaviour agent reads the conversation for scam patterns — in parallel.",
+                d: "The acoustic service and transcript request rules report separate findings and availability.",
                 tint: "bg-sky-50 text-sky-600",
               },
               {
                 n: "03",
                 icon: BellRing,
                 t: "Intervene",
-                d: "A clear warning, one next step, and your circle is notified on critical calls.",
+                d: "Verification guidance, optional browser vibration, and verified-recipient email delivery status.",
                 tint: "bg-emerald-50 text-emerald-600",
               },
             ].map((s) => (
@@ -251,7 +256,9 @@ export default function Overview({
                 </span>
                 <div>
                   <p className="text-sm font-semibold">{s.t}</p>
-                  <p className="text-xs leading-snug text-muted-foreground">{s.d}</p>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    {s.d}
+                  </p>
                 </div>
               </div>
             ))}
@@ -263,7 +270,7 @@ export default function Overview({
               className="w-full gap-2"
               onClick={() => onNavigate("circle")}
             >
-              Add teammates for instant alerts
+              Manage verified alert recipients
               <ArrowRight className="size-4" />
             </Button>
           </div>
