@@ -119,7 +119,7 @@ export default function MessageCheck() {
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Paste the SMS, WhatsApp text, or money request here..."
+            placeholder="Paste the SMS, chat message, or money request here..."
             className="min-h-36 resize-y"
             aria-label="Message text"
           />

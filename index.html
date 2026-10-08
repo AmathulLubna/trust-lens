@@ -11,6 +11,15 @@
     name="description"
     content="Trust Lens — deepfake voice detection and scam alerts for your team. Scan calls and voice notes for AI-generated speech, flag scam patterns in real time, and alert the right people before anyone acts."
   />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("tl-theme");
+        var dark = t === "dark" || ((!t || t === "system") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) { document.documentElement.classList.add("dark"); document.documentElement.style.colorScheme = "dark"; }
+      } catch (e) {}
+    })();
+  </script>
   <title>Trust Lens — Deepfake Voice Detection</title>
 </head>
 

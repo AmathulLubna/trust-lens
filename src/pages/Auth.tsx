@@ -17,7 +17,7 @@ import { TrustLensMark } from "@/components/TrustLensMark";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 interface AuthProps {
   redirectAfterAuth?: string;
@@ -330,6 +330,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             <div className="border-t bg-muted/40 px-6 py-3 text-center">
               <p className="arch-label text-xs text-muted-foreground">
                 The two seconds that stop the transfer
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                By continuing you agree to our{" "}
+                <Link to="/privacy" className="text-primary underline underline-offset-2">
+                  Privacy Policy
+                </Link>
+                .
               </p>
             </div>
           </div>

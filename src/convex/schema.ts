@@ -39,7 +39,6 @@ const schema = defineSchema(
       callerNumber: v.optional(v.string()),
       channel: v.union(
         v.literal("phone"),
-        v.literal("whatsapp"),
         v.literal("unknown"),
       ),
       startedAt: v.number(),
@@ -97,13 +96,7 @@ const schema = defineSchema(
     // TrustLens — per-user protection settings
     userSettings: defineTable({
       userId: v.id("users"),
-      vibrationAlert: v.boolean(),
-      bannerAlert: v.boolean(),
-      fullscreenAlert: v.boolean(),
       autoNotifyCircle: v.boolean(),
-      sensitivity: v.union(v.literal(1), v.literal(2), v.literal(3)),
-      channelPhone: v.boolean(),
-      channelWhatsapp: v.boolean(),
     }).index("by_user", ["userId"]),
 
     // TrustLens — community number reports (shared spam/fraud knowledge base)
@@ -111,7 +104,7 @@ const schema = defineSchema(
       userId: v.id("users"),
       number: v.string(), // normalized digits, e.g. "917000012345"
       display: v.string(), // pretty "+91 70000 12345" form
-      category: v.string(), // scam-call | voice-clone | whatsapp | sms | telemarketing | legit
+      category: v.string(), // scam-call | voice-clone | sms | telemarketing | legit
       note: v.optional(v.string()),
       createdAt: v.number(),
     })

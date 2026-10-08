@@ -1,7 +1,7 @@
 export type Verdict = "safe" | "suspicious" | "flagged";
 export type FlagKind = "voice" | "behavior" | "contact";
 export type Severity = "info" | "warning" | "critical";
-export type Channel = "phone" | "whatsapp" | "unknown";
+export type Channel = "phone" | "unknown";
 
 export interface ScamFlag {
   id: string;

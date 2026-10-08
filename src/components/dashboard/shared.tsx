@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { VERDICT_META, type Channel, type Verdict } from "@/lib/trustlens";
-import { MessageCircle, Phone } from "lucide-react";
+import { Phone } from "lucide-react";
 
 /** Clean card with a labelled header bar. */
 export function ArchCard({
@@ -79,13 +79,8 @@ export function ScoreMeter({
 }
 
 export function ChannelTag({ channel }: { channel: Channel }) {
-  const Icon = channel === "whatsapp" ? MessageCircle : Phone;
-  const label =
-    channel === "whatsapp"
-      ? "WhatsApp"
-      : channel === "phone"
-        ? "Phone"
-        : "Unknown";
+  const Icon = Phone;
+  const label = channel === "phone" ? "Phone" : "Unknown";
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
       <Icon className="size-3" />

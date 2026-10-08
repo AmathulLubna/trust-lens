@@ -24,7 +24,6 @@ export const record = mutation({
     callerNumber: v.optional(v.string()),
     channel: v.union(
       v.literal("phone"),
-      v.literal("whatsapp"),
       v.literal("unknown"),
     ),
     startedAt: v.number(),

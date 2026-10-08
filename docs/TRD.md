@@ -23,7 +23,7 @@
 │           │ edge verdict │        │  │  - userSettings        │  │
 │  ┌────────▼───────────┐  │        │  └─────────────────────────┘  │
 │  │ Intervention Layer │◀─┼────────┤  Notifications → circle      │
-│  │ banner + vibration │  │        │  (SMS/WhatsApp in Phase 2)   │
+│  │ banner + vibration │  │        │  (SMS in Phase 2)         │
 │  └────────────────────┘  │        └───────────────────────────────┘
 └──────────────────────────┘
 ```
@@ -55,7 +55,7 @@ The MVP is a **mobile-compatible web app** built on the Freebuff template:
 |---|---|---|
 | `userId` | `id("users")` | owner |
 | `callerName` / `callerNumber` | string? | spoofable; stored for reporting |
-| `channel` | `"phone" \| "whatsapp" \| "unknown"` | |
+| `channel` | `"phone" \| "unknown"` | |
 | `startedAt` / `endedAt` / `durationSec` | number? | |
 | `verdict` | `"safe" \| "suspicious" \| "flagged"` | |
 | `riskScore`, `voiceScore`, `behaviorScore` | number | 0–100 |
@@ -79,10 +79,7 @@ Index: `by_user`.
 | field | type |
 |---|---|
 | `userId` | `id("users")` |
-| `vibrationAlert`, `bannerAlert`, `fullscreenAlert` | boolean |
 | `autoNotifyCircle` | boolean |
-| `sensitivity` | 1 \| 2 \| 3 |
-| `channelPhone`, `channelWhatsapp` | boolean |
 
 Index: `by_user`.
 
