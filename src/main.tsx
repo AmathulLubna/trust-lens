@@ -117,35 +117,35 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
       <ThemeProvider>
-      <ToolbarErrorBoundary>
-        <VlyToolbar />
-      </ToolbarErrorBoundary>
-      <ConvexAuthProvider client={convex}>
-        <BrowserRouter>
-          <RouteSyncer />
-          <Suspense fallback={<RouteLoading />}>
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route
-                path="/auth"
-                element={<AuthPage redirectAfterAuth="/dashboard" />}
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <RequireAuth>
-                    <Dashboard />
-                  </RequireAuth>
-                }
-              />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-        <Toaster />
-        <CookieConsent />
-      </ConvexAuthProvider>
+        <ToolbarErrorBoundary>
+          <VlyToolbar />
+        </ToolbarErrorBoundary>
+        <ConvexAuthProvider client={convex}>
+          <BrowserRouter>
+            <RouteSyncer />
+            <Suspense fallback={<RouteLoading />}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route
+                  path="/auth"
+                  element={<AuthPage redirectAfterAuth="/dashboard" />}
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <RequireAuth>
+                      <Dashboard />
+                    </RequireAuth>
+                  }
+                />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+            <Toaster />
+            <CookieConsent />
+          </BrowserRouter>
+        </ConvexAuthProvider>
       </ThemeProvider>
     </RootErrorBoundary>
   </StrictMode>,
