@@ -1,12 +1,32 @@
+import { useTheme } from "@/components/ThemeProvider";
+import { openCookieSettings } from "@/lib/consent";
+import { Link } from "react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 export default function Settings() {
+  const { theme, setTheme } = useTheme();
   const saved = useQuery(api.settings.get);
   const update = useMutation(api.settings.update);
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <h1 className="text-2xl font-bold">Settings</h1>
+      <section className="rounded-xl border p-4">
+        <h2 className="font-semibold">Appearance</h2>
+        <div className="mt-3 flex gap-3">
+          {(["light", "dark", "system"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={theme === value}
+              onClick={() => setTheme(value)}
+              className="rounded border px-3 py-2"
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </section>
       <p>
         Preferences apply to this web microphone screen and finalized assessment
         notifications.
@@ -60,6 +80,18 @@ export default function Settings() {
         recording or session. Transcript history defaults off. Delete stored
         assessments and pending audio from History.
       </p>
+      <div className="flex gap-4">
+        <Link to="/privacy" className="underline">
+          Privacy policy
+        </Link>
+        <button
+          type="button"
+          onClick={openCookieSettings}
+          className="underline"
+        >
+          Cookie preferences
+        </button>
+      </div>
     </div>
   );
 }

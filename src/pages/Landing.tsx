@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { TrustLensMark } from "@/components/TrustLensMark";
@@ -9,9 +10,12 @@ export default function Landing() {
           <TrustLensMark className="size-10" />
           <strong>TrustLens</strong>
         </div>
-        <Button asChild>
-          <Link to="/auth">Sign in</Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Button asChild>
+            <Link to="/auth">Sign in</Link>
+          </Button>
+        </div>
       </header>
       <section className="mx-auto max-w-6xl px-6 py-20">
         <p className="text-sm font-semibold uppercase tracking-widest text-primary">
@@ -87,6 +91,11 @@ export default function Landing() {
           </p>
         </div>
       </section>
+      <footer className="mx-auto max-w-6xl px-6 py-8">
+        <Link to="/privacy" className="underline">
+          Privacy policy
+        </Link>
+      </footer>
     </main>
   );
 }

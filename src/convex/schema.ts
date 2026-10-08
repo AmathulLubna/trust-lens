@@ -64,10 +64,7 @@ const schema = defineSchema(
       userId: v.id("users"),
       callerName: v.optional(v.string()),
       callerNumber: v.optional(v.string()),
-      channel: v.union(
-        v.literal("phone"),
-        v.literal("unknown"),
-      ),
+      channel: v.union(v.literal("phone"), v.literal("unknown")),
       startedAt: v.number(),
       endedAt: v.optional(v.number()),
       durationSec: v.optional(v.number()),
@@ -143,9 +140,14 @@ const schema = defineSchema(
     userSettings: defineTable({
       userId: v.id("users"),
       autoNotifyCircle: v.boolean(),
-      sensitivity: v.union(v.literal(1), v.literal(2), v.literal(3)),
-      channelPhone: v.boolean(),
-      channelWhatsapp: v.boolean(),
+      vibrationAlert: v.optional(v.boolean()),
+      bannerAlert: v.optional(v.boolean()),
+      fullscreenAlert: v.optional(v.boolean()),
+      sensitivity: v.optional(
+        v.union(v.literal(1), v.literal(2), v.literal(3)),
+      ),
+      channelPhone: v.optional(v.boolean()),
+      channelWhatsapp: v.optional(v.boolean()),
       historyClearedAt: v.optional(v.number()),
     }).index("by_user", ["userId"]),
 

@@ -1,3 +1,4 @@
+import { ThemeProvider } from "../../src/components/ThemeProvider";
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
@@ -61,8 +62,10 @@ function Harness() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <Harness />
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Harness />
+      </BrowserRouter>
+    </ThemeProvider>
   </StrictMode>,
 );

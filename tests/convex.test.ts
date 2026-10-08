@@ -519,3 +519,25 @@ it("enforces actual streamed bytes even when content length lies", async () => {
     [],
   );
 });
+
+it("keeps older GitHub settings records usable while applying repaired preferences", async () => {
+  const { t, a, owner } = await setup();
+  await t.run((ctx) =>
+    ctx.db.insert("userSettings", { userId: owner, autoNotifyCircle: false }),
+  );
+  const settings = await a.query(api.settings.get, {});
+  expect(settings).toMatchObject({
+    autoNotifyCircle: false,
+    bannerAlert: true,
+    channelPhone: false,
+  });
+  await a.mutation(api.settings.update, {
+    bannerAlert: false,
+    vibrationAlert: false,
+  });
+  expect(await a.query(api.settings.get, {})).toMatchObject({
+    autoNotifyCircle: false,
+    bannerAlert: false,
+    vibrationAlert: false,
+  });
+});
