@@ -16,22 +16,25 @@ export const emailOtp = Email({
     return generateRandomString(random, alphabet, 6);
   },
   async sendVerificationRequest({ identifier: email, token }) {
+    const key = process.env.FREEBUFF_EMAIL_API_KEY;
+    if (!key) throw new Error("Email verification delivery is not configured");
     try {
-      await axios.post(
+      const response = await axios.post(
         "https://auth.freebuff.app/send_otp",
         {
           to: email,
           otp: token,
-          appName: process.env.VLY_APP_NAME || "a freebuff.com application",
+          appName: process.env.VLY_APP_NAME || "TrustLens",
         },
-        {
-          headers: {
-            "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
-          },
-        },
+        { headers: { "x-api-key": key }, timeout: 10000 },
       );
-    } catch (error) {
-      throw new Error(JSON.stringify(error));
+      if (response.data?.error || response.data?.success === false)
+        throw new Error("Provider rejected verification");
+    } catch {
+      // Axios errors can contain the OTP and provider credential; never expose them.
+      throw new Error(
+        "Verification delivery failed or is unconfirmed. Try again later.",
+      );
     }
   },
 });

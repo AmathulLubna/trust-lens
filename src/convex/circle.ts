@@ -15,6 +15,50 @@ export const list = query({
   },
 });
 
+/** Recipients verify ownership through their authenticated, verified account,
+ * and explicitly consent themselves. The circle owner cannot set these fields. */
+export const invitations = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const user = await ctx.db.get(userId);
+    if (!user?.emailVerificationTime || !user.email) return [];
+    const members = await ctx.db
+      .query("trustedCircle")
+      .filter((q) => q.eq(q.field("email"), user.email!.toLowerCase()))
+      .collect();
+    return Promise.all(
+      members.map(async (m) => ({
+        memberId: m._id,
+        ownerName:
+          (await ctx.db.get(m.userId))?.name ?? "A TrustLens circle owner",
+        consented: m.recipientConsent === true,
+      })),
+    );
+  },
+});
+export const consentToAlerts = mutation({
+  args: { memberId: v.id("trustedCircle"), accept: v.boolean() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const user = await ctx.db.get(userId);
+    const member = await ctx.db.get(args.memberId);
+    if (
+      !user?.emailVerificationTime ||
+      !user.email ||
+      !member ||
+      member.email !== user.email.toLowerCase()
+    )
+      throw new Error("A verified recipient account is required");
+    await ctx.db.patch(member._id, {
+      recipientVerifiedAt: args.accept ? Date.now() : undefined,
+      recipientConsent: args.accept,
+    });
+  },
+});
+
 export const add = mutation({
   args: {
     name: v.string(),
@@ -28,14 +72,23 @@ export const add = mutation({
     if (userId === null) {
       throw new Error("Not authenticated");
     }
+    const existing = await ctx.db
+      .query("trustedCircle")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .take(10);
+    if (existing.length >= 10)
+      throw new Error("Circle limit is ten recipients");
+    if (args.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(args.email.trim()))
+      throw new Error("Invalid recipient email");
     const id = await ctx.db.insert("trustedCircle", {
       userId,
       name: args.name.trim(),
       phone: args.phone.trim(),
-      email: args.email?.trim() ? args.email.trim() : undefined,
+      email: args.email?.trim() ? args.email.trim().toLowerCase() : undefined,
       relation: args.relation.trim(),
       notifyOnFlag: args.notifyOnFlag,
       addedAt: Date.now(),
+      recipientConsent: false,
     });
     return id;
   },

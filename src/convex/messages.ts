@@ -6,9 +6,13 @@ export const recordCheck = mutation({
   args: {
     sender: v.optional(v.string()),
     messagePreview: v.string(),
-    riskScore: v.number(),
+    riskScore: v.optional(v.number()),
     verdict: v.union(
       v.literal("safe"),
+      v.literal("no_strong_indicators"),
+      v.literal("inconclusive"),
+      v.literal("analysis_unavailable"),
+      v.literal("insufficient_audio"),
       v.literal("suspicious"),
       v.literal("flagged"),
     ),

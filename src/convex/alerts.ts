@@ -1,130 +1,109 @@
 "use node";
-
 import { v } from "convex/values";
-import axios from "axios";
+import { Resend } from "resend";
+import { createHash } from "node:crypto";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 
-const RESEND_URL = "https://api.resend.com/emails";
-// Resend's sandbox "from" address — works without a verified custom domain.
-// Swap to something like "Trust Lens <alerts@yourdomain.com>" once you've
-// verified a domain in the Resend dashboard.
-const FROM_ADDRESS = "Trust Lens <onboarding@resend.dev>";
-
-/** Fire an email alert to every trusted-circle member who has
- *  notifyOnFlag=true and an email on file, when a call comes back
- *  "flagged" (or "suspicious", if you want it more sensitive later).
- *  Called from analyze.ts's groqVerdict action — never throws, so a
- *  failed alert never breaks the verdict the user is already seeing. */
-export const notifyCircleOnFlag = internalAction({
-  args: {
-    userId: v.id("users"),
-    userName: v.optional(v.string()),
-    verdict: v.string(),
-    confidence: v.number(),
-    summary: v.string(),
-    markers: v.array(v.string()),
-  },
+export const deliver = internalAction({
+  args: { userId: v.id("users"), eventId: v.string() },
   handler: async (ctx, args) => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      console.warn(
-        "[alerts] RESEND_API_KEY not set — skipping circle notification.",
-      );
-      return { ok: false, sent: 0, reason: "no_api_key" as const };
+    const event = await ctx.runMutation(internal.alertPolicy.claim, args);
+    if (!event) return;
+    const key = process.env.RESEND_API_KEY;
+    const from = process.env.RESEND_FROM;
+    if (!key || !from || from.includes("resend.dev")) {
+      await ctx.runMutation(internal.alertPolicy.update, {
+        ...args,
+        status: "failed",
+        providerIds: [],
+        detail: "Configure a verified RESEND_FROM and RESEND_API_KEY",
+      });
+      return;
     }
-
-    const members = await ctx.runQuery(internal.circle.listForAlerts, {
-      userId: args.userId,
-    });
-    const recipients = members.filter(
-      (m): m is typeof m & { email: string } =>
-        typeof m.email === "string" && m.email.length > 0,
-    );
-    if (recipients.length === 0) {
-      return { ok: true, sent: 0, reason: "no_recipients" as const };
-    }
-
-    const who = args.userName?.trim() || "Someone in your circle";
-    const subject = `⚠ Trust Lens flagged a call for ${who}`;
-    const markersHtml = args.markers.length
-      ? `<ul>${args.markers.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>`
-      : "<p>No specific markers listed.</p>";
-
-    const html = `
-      <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color:#dc2626;">Trust Lens Alert</h2>
-        <p><strong>${escapeHtml(who)}</strong> just had a call flagged as
-        <strong>${escapeHtml(args.verdict)}</strong>
-        (${Math.round(args.confidence)}% confidence).</p>
-        <p>${escapeHtml(args.summary)}</p>
-        <p><strong>What Trust Lens noticed:</strong></p>
-        ${markersHtml}
-        <p style="color:#6b7280; font-size: 12px; margin-top: 24px;">
-          You're getting this because ${escapeHtml(who)} added you to their
-          Trust Lens alert circle. This is an automated warning aid, not
-          proof of fraud — reach out to them directly to check in.
-        </p>
-      </div>
-    `.trim();
-
-    let sent = 0;
-    const failures: string[] = [];
-
-    // Resend's free tier is fine with sequential sends for a small circle;
-    // Promise.allSettled keeps one bad email from blocking the rest.
-    const results = await Promise.allSettled(
-      recipients.map((r) =>
-        axios.post(
-          RESEND_URL,
-          {
-            from: FROM_ADDRESS,
-            to: r.email,
-            subject,
-            html,
+    const ids: string[] = [];
+    let unknown = false;
+    for (const email of event.recipients) {
+      try {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + key,
+            "Content-Type": "application/json",
+            "Idempotency-Key": createHash("sha256")
+              .update(args.userId + ":" + args.eventId + ":" + email)
+              .digest("hex"),
           },
-          { headers: { Authorization: `Bearer ${apiKey}` } },
-        ),
-      ),
-    );
-
-    results.forEach((r, i) => {
-      if (r.status === "fulfilled") {
-        sent += 1;
-      } else {
-        // axios errors carry the real API response in .response.data —
-        // .message alone just says "Request failed with status code 403"
-        // which tells you nothing. Pull the actual Resend error body.
-        let detail: string;
-        const reason = r.reason as {
-          response?: { status?: number; data?: unknown };
-          message?: string;
+          body: JSON.stringify({
+            from,
+            to: email,
+            subject: "TrustLens: independently verify a sensitive request",
+            text: "Someone who added you to their alert circle received a screening warning. Please contact them through your previously saved contact. This warning does not prove fraud or caller identity. No recording or transcript is included.",
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const body = (await response.json()) as {
+          id?: string;
+          error?: unknown;
         };
-        if (reason?.response) {
-          detail = `HTTP ${reason.response.status}: ${JSON.stringify(reason.response.data)}`;
-        } else {
-          detail = reason?.message ?? String(r.reason);
-        }
-        failures.push(`${recipients[i].email}: ${detail}`);
+        if (response.ok && body.id && !body.error) ids.push(body.id);
+        else if (response.ok || response.status >= 500) unknown = true;
+      } catch {
+        unknown = true; /* A timed-out request may have been accepted. */
       }
+    }
+    await ctx.runMutation(internal.alertPolicy.update, {
+      ...args,
+      status:
+        ids.length === event.recipients.length
+          ? "accepted_by_provider"
+          : ids.length
+            ? "partially_accepted"
+            : unknown
+              ? "delivery_unknown"
+              : "failed",
+      providerIds: ids,
+      detail: unknown
+        ? "Some delivery attempts have no confirmed provider response"
+        : "Provider acceptance is not delivery confirmation",
     });
-
-    if (failures.length) {
-      console.error("[alerts] circle email send failures:", failures.join(" | "));
-    }
-    if (sent > 0) {
-      console.log(`[alerts] sent ${sent} circle alert email(s).`);
-    }
-
-    return { ok: true, sent, failed: failures.length, failureDetails: failures };
   },
 });
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export const verifyWebhook = internalAction({
+  args: {
+    payload: v.string(),
+    id: v.string(),
+    timestamp: v.string(),
+    signature: v.string(),
+  },
+  handler: async (ctx, args): Promise<boolean> => {
+    const secret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!secret || args.payload.length > 65536) return false;
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const event = resend.webhooks.verify({
+        payload: args.payload,
+        headers: {
+          id: args.id,
+          timestamp: args.timestamp,
+          signature: args.signature,
+        },
+        webhookSecret: secret,
+      });
+      if (
+        !["email.delivered", "email.failed", "email.bounced"].includes(
+          event.type,
+        )
+      )
+        return true;
+      const data = event.data as { email_id?: string };
+      if (!data.email_id) return false;
+      return await ctx.runMutation(internal.alertPolicy.webhookUpdate, {
+        providerId: data.email_id,
+        type: event.type,
+      });
+    } catch {
+      return false;
+    }
+  },
+});
