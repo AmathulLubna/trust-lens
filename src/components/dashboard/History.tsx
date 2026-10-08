@@ -1,15 +1,40 @@
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ChannelTag, VerdictStamp } from "@/components/dashboard/shared";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { fmtClock, fmtDate, fmtDuration, VERDICT_META, type Verdict } from "@/lib/trustlens";
+import {
+  fmtClock,
+  fmtDate,
+  fmtDuration,
+  VERDICT_META,
+  type Verdict,
+} from "@/lib/trustlens";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronDown, Eraser, ScrollText, ScanLine } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+import AssessmentView from "./AssessmentView";
+import type { Assessment } from "@/lib/assessment";
 
 type Filter = "all" | Verdict;
 
@@ -17,16 +42,24 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "flagged", label: "Flagged" },
   { value: "suspicious", label: "Suspicious" },
-  { value: "safe", label: "Safe" },
+  { value: "no_strong_indicators", label: "No strong indicators" },
+  { value: "inconclusive", label: "Inconclusive" },
+  { value: "analysis_unavailable", label: "Unavailable" },
+  { value: "insufficient_audio", label: "Insufficient audio" },
+  { value: "safe", label: "Legacy" },
 ];
 
 export default function History() {
   const logs = useQuery(api.calls.list);
+  const messageHistory = useQuery(api.messages.history);
+  const numberHistory = useQuery(api.numbers.history);
   const clearLogs = useMutation(api.calls.clear);
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const filtered = (logs ?? []).filter((l) => filter === "all" || l.verdict === filter);
+  const filtered = (logs ?? []).filter(
+    (l) => filter === "all" || l.verdict === filter,
+  );
 
   async function handleClear() {
     try {
@@ -43,12 +76,20 @@ export default function History() {
         <div>
           <p className="arch-label text-primary">Call ledger · archive</p>
           <h2 className="mt-1 font-display text-2xl font-bold tracking-tight">
-            Every screened call, on record
+            Your screening history
           </h2>
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="outline" className="gap-2" disabled={!logs?.length}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={
+                !logs?.length &&
+                !messageHistory?.length &&
+                !numberHistory?.length
+              }
+            >
               <Eraser className="size-4" />
               Clear ledger
             </Button>
@@ -57,8 +98,10 @@ export default function History() {
             <AlertDialogHeader>
               <AlertDialogTitle>Clear the ledger?</AlertDialogTitle>
               <AlertDialogDescription>
-                This permanently deletes every archived call for your account.
-                Verdicts and scores are removed too — this cannot be undone.
+                This deletes your call, message and number-check history,
+                associated temporary uploads, and queued notification records.
+                In-flight results started before deletion are excluded.
+                Previously sent email cannot be recalled.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -96,7 +139,10 @@ export default function History() {
       {!logs ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-2xl border border-border bg-card/60" />
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-2xl border border-border bg-card/60"
+            />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -110,7 +156,7 @@ export default function History() {
             </EmptyTitle>
             <EmptyDescription>
               {filter === "all"
-                ? "Run the scenario call in Live Guard and the record will appear here."
+                ? "Analyze a consented recording or microphone session to save an assessment. Scripted demonstrations are excluded."
                 : "No calls match this verdict. Try another filter or run a new screening."}
             </EmptyDescription>
           </EmptyHeader>
@@ -119,11 +165,13 @@ export default function History() {
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           {/* header (desktop) */}
           <div className="hidden grid-cols-[1.2fr_1fr_0.7fr_1fr_auto] items-center gap-4 border-b border-border/80 bg-muted/50 px-5 py-2.5 md:grid">
-            {["Caller", "When", "Duration", "Risk", "Verdict"].map((h) => (
-              <span key={h} className="arch-label text-muted-foreground">
-                {h}
-              </span>
-            ))}
+            {["Sample", "When", "Duration", "Evidence", "Assessment"].map(
+              (h) => (
+                <span key={h} className="arch-label text-muted-foreground">
+                  {h}
+                </span>
+              ),
+            )}
           </div>
           <div className="divide-y divide-border/70">
             {filtered.map((log) => (
@@ -139,6 +187,51 @@ export default function History() {
           </div>
         </div>
       )}
+      {!!messageHistory?.length && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">Message checks</h3>
+          {messageHistory.map((item) => (
+            <div key={item._id} className="rounded border p-4">
+              <p>
+                {fmtDate(item.createdAt)} · {fmtClock(item.createdAt)}
+              </p>
+              <VerdictStamp verdict={item.verdict} />
+              {item.messagePreview ? (
+                <p>Saved preview: {item.messagePreview}</p>
+              ) : (
+                <p>Message text was not retained.</p>
+              )}
+              <ul>
+                {item.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Request screening does not establish identity or fraud.
+              </p>
+            </div>
+          ))}
+        </section>
+      )}
+      {!!numberHistory?.length && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold">Number checks</h3>
+          {numberHistory.map((item) => (
+            <div key={item._id} className="rounded border p-4">
+              <p>
+                {item.display} · {fmtDate(item.createdAt)} ·{" "}
+                {fmtClock(item.createdAt)}
+              </p>
+              <VerdictStamp verdict={item.verdict} />
+              <ul>
+                {item.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }
@@ -152,7 +245,11 @@ function LedgerRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const hasDetails = log.flags.length > 0 || (log.transcript?.length ?? 0) > 0;
+  const hasDetails =
+    !!log.assessmentJson ||
+    !!log.notificationStatus ||
+    log.flags.length > 0 ||
+    (log.transcript?.length ?? 0) > 0;
   return (
     <>
       <button
@@ -165,13 +262,23 @@ function LedgerRow({
       >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {log.callerName ?? "Unknown caller"}
+            {log.callerName ??
+              (log.source === "upload"
+                ? "Uploaded recording"
+                : log.source === "microphone"
+                  ? "Microphone session"
+                  : "Legacy sample")}
           </p>
           <div className="mt-0.5 flex items-center gap-2">
             <span className="font-mono text-[11px] text-muted-foreground">
               {log.callerNumber ?? "—"}
             </span>
             <ChannelTag channel={log.channel} />
+            {log.source === "demo" && (
+              <span className="text-xs">
+                Scripted demonstration · excluded from detection
+              </span>
+            )}
           </div>
         </div>
         <div className="hidden md:block">
@@ -190,7 +297,9 @@ function LedgerRow({
             className={`h-1.5 w-16 rounded-full ${VERDICT_META[log.verdict].bar}`}
           />
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {log.riskScore}
+            {log.riskScore !== undefined
+              ? "Legacy score " + log.riskScore
+              : "Assessment"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -211,12 +320,28 @@ function LedgerRow({
             {fmtDuration(log.durationSec ?? 0)}
           </span>
           <span className="font-mono text-xs text-muted-foreground">
-            risk {log.riskScore}
+            {log.riskScore !== undefined
+              ? "Legacy score " + log.riskScore
+              : "Assessment"}
           </span>
         </div>
       </button>
       {expanded && hasDetails && (
         <div className="border-t border-border/60 bg-muted/30 px-5 py-4">
+          {log.assessmentJson && (
+            <AssessmentView
+              result={JSON.parse(log.assessmentJson) as Assessment}
+            />
+          )}
+          {log.coverageGaps !== undefined && (
+            <p>Coverage gaps: {log.coverageGaps}</p>
+          )}
+          {!log.assessmentJson && (
+            <p>
+              Legacy record: earlier heuristics or demonstration scores may have
+              been used; caller identity was never verified.
+            </p>
+          )}
           {log.flags.length > 0 && (
             <div className="mb-4">
               <p className="arch-label mb-2 text-muted-foreground">
@@ -242,7 +367,7 @@ function LedgerRow({
           {log.transcript && log.transcript.length > 0 && (
             <div>
               <p className="arch-label mb-2 text-muted-foreground">
-                Transcript (stored by opt-in)
+                Transcript (legacy; retention provenance may be unavailable)
               </p>
               <div className="space-y-1.5">
                 {log.transcript.map((line) => (
@@ -256,9 +381,9 @@ function LedgerRow({
               </div>
             </div>
           )}
-          {log.notifiedCircle && (
-            <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-400">
-              ✓ Alert circle notified on this call.
+          {log.notificationStatus && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Notification status: {log.notificationStatus}.
             </p>
           )}
         </div>
