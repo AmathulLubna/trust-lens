@@ -8,7 +8,7 @@
 ## 1. Problem Statement
 
 AI voice-cloning scams are exploding across India. Attackers capture 3–10 seconds of a
-relative's voice (often scraped from social media or WhatsApp statuses) and call family
+relative's voice (often scraped from social media or voice notes) and call family
 members claiming a fabricated emergency — *"Beta, main musibat mein hoon, paise bhejo"* —
 using a convincing clone of a loved one's voice. Elderly users are the primary victims
 because they trust familiar voices and are unfamiliar with the technology.
@@ -25,7 +25,7 @@ are told to check, and it does not help when the *voice itself* is fake.
 
 | Persona | Description | Primary need |
 |---|---|---|
-| **The Elder (primary user)** | 55+, owns a smartphone, uses WhatsApp daily, relies on phone calls with family | An alert they can understand in 2 seconds, in their language |
+| **The Elder (primary user)** | 55+, owns a smartphone, relies on phone calls with family | An alert they can understand in 2 seconds, in their language |
 | **The Adult Child (family safety net)** | 25–45, tech-comfortable, financially independent | Trusted-circle alerts when a parent is targeted |
 | **The Concerned Spouse** | May be primary or secondary user | Same as Elder, plus shared protection |
 
@@ -40,7 +40,6 @@ are told to check, and it does not help when the *voice itself* is fake.
 
 ### Non-Goals (this release)
 - Android accessibility-service audio interception (Phase 2, documented in TRD).
-- WhatsApp *call audio* interception (blocked by OS; Phase 2 uses Android's audio capture APIs where permitted).
 - Guaranteed 100% accuracy — TrustLens is a *warning system*, not a court of evidence.
 - Replacement of the user's judgment or bank's fraud systems.
 
@@ -58,7 +57,7 @@ are told to check, and it does not help when the *voice itself* is fake.
 ### FR-1 — Live Call Screening (simulated in web MVP, real in Phase 2)
 - R1.1 The system analyzes live audio in windows of ~400 ms, maintaining a rolling synthetic-voice score.
 - R1.2 Voice score updates in real time; a verdict can be issued within 2 seconds of speech onset.
-- R1.3 Channels: phone calls and WhatsApp voice calls.
+- R1.3 Inputs: live microphone audio, uploaded voice notes, pasted numbers and messages.
 
 ### FR-2 — Voice Authenticity Agent
 - R2.1 Edge features computed locally: pitch-jitter, spectral artifacts, prosody flatness, formant stability.
@@ -73,11 +72,11 @@ are told to check, and it does not help when the *voice itself* is fake.
 ### FR-4 — Intervention Layer
 - R4.1 Mid-call banner with combined verdict: "Possible voice clone + urgency scam pattern detected."
 - R4.2 Distinct vibration pattern; optional full-screen takeover for critical verdicts.
-- R4.3 Action guidance: "Verify via a separate channel before acting" + one-tap "Verify now" that opens the dialer/WhatsApp to a *known* trusted number (never the caller).
+- R4.3 Action guidance: "Verify via a separate channel before acting" + one-tap "Verify now" that opens the dialer to a *known* trusted number (never the caller).
 
 ### FR-5 — Family Safety Net (Trusted Circle)
 - R5.1 User maintains a trusted circle of family members (name, phone, relation).
-- R5.2 On `flagged` verdict, circle members with `notifyOnFlag` are notified (SMS/WhatsApp in Phase 2; in-app alert in web MVP).
+- R5.2 On `flagged` verdict, circle members with `notifyOnFlag` are notified (email alert in web MVP; SMS in Phase 2).
 - R5.3 Circle members can see a minimal, privacy-preserving alert: who, when, verdict — never the full transcript without consent.
 
 ### FR-6 — Call Ledger
@@ -85,9 +84,8 @@ are told to check, and it does not help when the *voice itself* is fake.
 - R6.2 Ledger supports filtering and sharing a "dossier" with the family/authorities (e.g., cyber-crime helpline 1930).
 
 ### FR-7 — Settings
-- R7.1 Toggles: vibration, banner, full-screen alert, trusted-circle auto-notify.
-- R7.2 Sensitivity: Standard / High (fewer false negatives, more alerts).
-- R7.3 Channel toggles: phone, WhatsApp.
+- R7.1 Toggle: trusted-circle auto-notify.
+- R7.2 Theme: light / dark / system.
 - R7.4 Language preference (Hindi, Tamil, Telugu, Bengali, English — roadmap).
 
 ## 7. Success Metrics
@@ -112,9 +110,8 @@ are told to check, and it does not help when the *voice itself* is fake.
 
 **Phase 2:**
 - Android app with AccessibilityService audio tap + foreground service.
-- WhatsApp call audio via Android capture APIs (where permitted).
 - Groq-hosted classifier + Whisper transcription integration.
-- SMS/WhatsApp notifications to trusted circle.
+- SMS notifications to trusted circle.
 - Hindi + regional-language support.
 
 ## 10. Open Questions

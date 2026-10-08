@@ -2,7 +2,7 @@
 
 # 🔍 Trust Lens
 
-### Real-time deepfake & scam-call detection for phone and WhatsApp voice
+### Real-time deepfake voice & scam detection — microphone, uploads, numbers and messages
 
 Detect AI voice cloning, flag social-engineering scam patterns, and alert the right people — **before anyone sends money**.
 
@@ -39,11 +39,12 @@ Trust Lens runs **two detection agents in parallel** on every call, then **inter
 ### Feature tour
 
 - **🛡️ Live Guard** — *Test bench:* simulate the classic "Amma in trouble" scam call and watch both agents work in real time, or run a **live voice check** on your microphone: on-device acoustics score the voice instantly while Groq Whisper transcribes full sentences and the LLM cross-checks content automatically.
-- **🔢 Number Check** — *Screening desk:* paste any number (missed call, SMS sender, WhatsApp contact) and get a risk verdict from pattern heuristics (TRAI 140-series UCC ranges, burner-SIM repeated digits, sequential/zero-heavy lines), the shared team knowledge base, and a Groq second opinion. Every lookup is recorded.
-- **💬 Message Check** — Paste an SMS or WhatsApp message and get a verdict from heuristic signal scanning plus a Gemini (primary) / Groq (fallback) opinion, with the exact markers that drove the score.
+- **🔢 Number Check** — *Screening desk:* paste any number (missed call, SMS sender, saved contact) and get a risk verdict from pattern heuristics (TRAI 140-series UCC ranges, burner-SIM repeated digits, sequential/zero-heavy lines), the shared team knowledge base, and a Groq second opinion. Every lookup is recorded.
+- **💬 Message Check** — Paste an SMS or chat message and get a verdict from heuristic signal scanning plus a Gemini (primary) / Groq (fallback) opinion, with the exact markers that drove the score.
 - **📜 History Ledger** — Every screened call and check on record: verdict, risk score, markers, duration, and opt-in transcripts — filterable and clearable in one tap.
 - **👥 Alert Circle** — A trusted team ("your family safety net"): when a call is flagged, the right people are notified automatically — with *who, when, and the verdict, never the transcript*.
-- **⚙️ Settings** — Tune banner/vibration/full-screen interventions, sensitivity, and channels. Privacy by design: analysis runs on-device, transcripts are stored only on explicit opt-in, and your data never trains anyone's models.
+- **⚙️ Settings** — Light / dark / system theme, auto-notify for your alert circle, a link to the Privacy Policy and cookie preferences. Acoustic scoring runs in the browser; audio chunks go to Groq for transcription and are not stored; transcripts are saved only on explicit opt-in.
+- **🔒 Privacy & cookies** — `/privacy` policy page and a cookie-consent banner (essential vs. optional preference storage; no analytics or ad cookies). Edit the contact in `src/pages/Privacy.tsx`.
 
 ## How the verdict is calculated
 
@@ -194,8 +195,8 @@ src/
 ## Roadmap
 
 - [x] MVP — live voice check, number screening desk, message check, call ledger, alert circle
-- [ ] **Phone/WhatsApp call interception** — Android accessibility service / call-screen audio tap (Phase 2)
-- [ ] SMS / WhatsApp Business notifications for the trusted circle
+- [ ] **Phone call interception** — Android call-screen audio tap (not implemented; today screening uses the microphone or an uploaded file)
+- [ ] SMS notifications for the trusted circle
 - [ ] Hosted on-device classifier relay (Groq) for borderline voices
 - [ ] Native Android app
 

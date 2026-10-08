@@ -124,7 +124,7 @@ export default function NumberCheck() {
           Check a number before it calls you
         </h2>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Paste any phone number — a missed call, an SMS sender, a WhatsApp
+          Paste any phone number — a missed call, an SMS sender, a saved
           contact — and get a risk verdict from pattern heuristics, your team's
           shared reports, and a Groq second opinion.
         </p>

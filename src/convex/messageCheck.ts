@@ -42,7 +42,7 @@ async function checkMessage(ctx: ActionCtx, text: string, sender?: string) {
 
   const trimmed = text.trim();
   if (trimmed.length < 2) {
-    return { ok: false, message: "Paste the SMS, WhatsApp text, or message first." };
+    return { ok: false, message: "Paste the SMS or message first." };
   }
   if (trimmed.length > 5000) {
     return { ok: false, message: "Keep the message under 5,000 characters for one check." };

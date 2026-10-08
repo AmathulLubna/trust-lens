@@ -107,15 +107,7 @@ export default function Overview({
                 {settings ? "Screening is on" : "Loading your guard…"}
               </p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
-                {[
-                  settings?.channelPhone && "Phone calls",
-                  settings?.channelWhatsapp && "WhatsApp voice",
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "No channels enabled"}
-                <span className="text-white/45">
-                  · sensitivity {["", "Standard", "High", "Very high"][settings?.sensitivity ?? 2]}
-                </span>
+                Live voice · Number check · Message check
               </p>
             </div>
           </div>
@@ -232,8 +224,8 @@ export default function Overview({
               {
                 n: "01",
                 icon: AudioLines,
-                t: "Intercept",
-                d: "Live audio in 400 ms windows, entirely on-device.",
+                t: "Listen",
+                d: "Live mic audio in 400 ms windows; acoustics scored in your browser.",
                 tint: "bg-primary/10 text-primary",
               },
               {
@@ -247,7 +239,7 @@ export default function Overview({
                 n: "03",
                 icon: BellRing,
                 t: "Intervene",
-                d: "Banner + vibration, one clear action, and your circle is notified on critical calls.",
+                d: "A clear warning, one next step, and your circle is notified on critical calls.",
                 tint: "bg-emerald-50 text-emerald-600",
               },
             ].map((s) => (

@@ -20,7 +20,6 @@ import {
   SCENARIO_END_S,
   verdictFromRisk,
   voiceRamp,
-  type Channel,
   type ScamFlag,
   type TranscriptLine,
   type Verdict,
@@ -58,7 +57,6 @@ const BAR_HEIGHTS = [0.35, 0.7, 0.5, 0.9, 0.4, 0.75, 0.3, 0.85, 0.6, 0.45, 0.8, 
 export default function LiveGuard() {
   const [mode, setMode] = useState<Mode>("scenario");
   const [phase, setPhase] = useState<Phase>("setup");
-  const [channel, setChannel] = useState<Channel>("phone");
   const [saveTranscript, setSaveTranscript] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [shownLines, setShownLines] = useState<TranscriptLine[]>([]);
@@ -135,7 +133,7 @@ export default function LiveGuard() {
         await recordCall({
           callerName: CALLER.name,
           callerNumber: CALLER.number,
-          channel,
+          channel: "phone",
           startedAt: Date.now() - elapsed * 1000,
           durationSec: Math.round(elapsed),
           verdict,
@@ -205,8 +203,6 @@ export default function LiveGuard() {
       {mode === "scenario" ? (
         <ScenarioPanel
           phase={phase}
-          channel={channel}
-          setChannel={setChannel}
           saveTranscript={saveTranscript}
           setSaveTranscript={setSaveTranscript}
           onAnswer={() => setPhase("active")}
@@ -234,8 +230,6 @@ export default function LiveGuard() {
 
 function ScenarioPanel(props: {
   phase: Phase;
-  channel: Channel;
-  setChannel: (c: Channel) => void;
   saveTranscript: boolean;
   setSaveTranscript: (b: boolean) => void;
   onAnswer: () => void;
@@ -253,7 +247,7 @@ function ScenarioPanel(props: {
   saving: boolean;
 }) {
   const {
-    phase, channel, setChannel, saveTranscript, setSaveTranscript,
+    phase, saveTranscript, setSaveTranscript,
     onAnswer, onEnd, onReset, elapsed, voiceScore, behaviorScore, risk,
     verdict, flaggedAt, shownLines, revealedFlags, notified, saving,
   } = props;
@@ -270,29 +264,6 @@ function ScenarioPanel(props: {
             agents work in parallel, and see when — and how — the guard
             intervenes.
           </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {(
-              [
-                ["phone", "Phone call", Phone],
-                ["whatsapp", "WhatsApp voice", MessageCircle],
-              ] as const
-            ).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setChannel(value)}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-                  channel === value
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </button>
-            ))}
-          </div>
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/40 p-3">
             <Switch
               checked={saveTranscript}
@@ -334,7 +305,7 @@ function ScenarioPanel(props: {
           <div>
             <p className="font-display text-xl font-semibold">{CALLER.name}</p>
             <p className="font-mono text-sm text-muted-foreground">
-              {CALLER.number} · {channel === "whatsapp" ? "WhatsApp voice call" : "Phone call"}
+              {CALLER.number} · Phone call
             </p>
           </div>
           <span className="arch-label flex items-center gap-2 text-primary">
@@ -404,7 +375,7 @@ function ScenarioPanel(props: {
                 <div>
                   <p className="font-semibold">{CALLER.name}</p>
                   <p className="font-mono text-xs text-muted-foreground">
-                    {CALLER.number} · {channel}
+                    {CALLER.number} · Phone call
                   </p>
                 </div>
                 <span className="ml-auto arch-label flex items-center gap-1.5 text-primary">

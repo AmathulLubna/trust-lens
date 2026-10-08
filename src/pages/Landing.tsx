@@ -24,6 +24,8 @@ import {
   Users,
   Vibrate,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { openCookieSettings } from "@/lib/consent";
 import { Link } from "react-router";
 
 const fadeUp = {
@@ -53,7 +55,7 @@ const FAQ = [
   },
   {
     q: "Does it work on live calls and voice notes?",
-    a: "The web app screens live microphone audio right now, and the roadmap adds an Android layer that taps the call audio stream for both regular calls and WhatsApp voice calls. The same two agents run, and the same verdicts come back.",
+    a: "The web app screens live microphone audio right now — put a call on speaker, or upload a voice note — and the same two agents score the voice and the conversation. It does not hook into your phone's call audio; screening happens through the microphone or an uploaded file.",
   },
   {
     q: "What happens when something is flagged?",
@@ -61,7 +63,7 @@ const FAQ = [
   },
   {
     q: "Does it record conversations?",
-    a: "No, not by default. Analysis runs on-device and scores are saved; transcripts are stored only if you explicitly opt in, and you can wipe the whole ledger with one tap.",
+    a: "No, not by default. Acoustic scoring runs in your browser and only scores and verdicts are saved. Short audio chunks are sent to Groq for transcription and are not stored by Trust Lens; transcripts are saved only if you explicitly opt in, and you can wipe the whole ledger with one tap.",
   },
   {
     q: "Is this a certified forensic tool?",
@@ -111,6 +113,7 @@ export default function Landing() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="ghost" className="hidden sm:inline-flex">
               <Link to="/auth?returnTo=/dashboard">Sign in</Link>
             </Button>
@@ -214,7 +217,7 @@ export default function Landing() {
                   <div className="text-center">
                     <p className="font-semibold text-slate-100">Amma (Mother)</p>
                     <p className="font-mono text-[10px] text-slate-400">
-                      +91 98••••••21 · WhatsApp call
+                      +91 98••••••21 · Phone call
                     </p>
                   </div>
                   <span className="stamp text-red-400">
@@ -300,7 +303,7 @@ export default function Landing() {
             </h2>
             <p className="mt-5 text-base leading-relaxed text-muted-foreground">
               Spoofed caller ID is one of the cheapest tools in the scammer's
-              kit. Paste any number — a missed call, an SMS sender, a WhatsApp
+              kit. Paste any number — a missed call, an SMS sender, a saved
               contact — and the desk weighs pattern heuristics, your team's
               shared reports, and a Groq second opinion into one clear verdict.
             </p>
@@ -406,7 +409,7 @@ export default function Landing() {
             </h2>
             <p className="mt-5 text-base leading-relaxed text-muted-foreground">
               Scammers harvest 3–10 second clips of a relative's voice from
-              WhatsApp statuses and social media, then call with a perfect
+              voice notes and social media, then call with a perfect
               clone: <em>“Beta, I'm in trouble — send money now.”</em> The
               victim isn't careless. The voice simply sounds like family, and
               caller ID is meaningless when the number itself is spoofed.
@@ -496,8 +499,8 @@ export default function Landing() {
                 icon: AudioLines,
                 tint: "bg-primary/10 text-primary",
                 title: "The Interceptor",
-                body: "Taps the live audio stream — phone or WhatsApp — and chops it into 400 ms windows. Nothing leaves your device unless you opt in.",
-                tags: ["Live audio", "Edge-first"],
+                body: "Listens to live microphone audio and chops it into 400 ms windows. Acoustic scoring runs in your browser; short audio chunks go to Groq only for transcription.",
+                tags: ["Live audio", "Mic-based"],
               },
               {
                 n: "02",
@@ -681,8 +684,9 @@ export default function Landing() {
             <span className="text-[#4ce0d2]">The two seconds that stop the transfer.</span>
           </h2>
           <p className="relative mx-auto mt-5 max-w-xl text-white/70">
-            Set up your team's guard in under a minute. Works on phone and
-            WhatsApp calls — and it never needs to record a word.
+            Set up your team's guard in under a minute. Screen a call on
+            speaker, a voice note, a number or a message — and Trust Lens never
+            saves your audio.
           </p>
           <Button
             asChild
@@ -709,8 +713,7 @@ export default function Landing() {
                 </span>
               </div>
               <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Deepfake voice detection and scam alerts for your team — on
-                phone and WhatsApp.
+                Deepfake voice detection and scam alerts for your team.
               </p>
             </div>
             <div className="flex gap-12">
@@ -753,6 +756,20 @@ export default function Landing() {
                     </Link>
                   </li>
                   <li>
+                    <Link to="/privacy" className="hover:underline">
+                      Privacy Policy
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={openCookieSettings}
+                      className="hover:underline"
+                    >
+                      Cookie preferences
+                    </button>
+                  </li>
+                  <li>
                     <a
                       href="/trust-lens.zip"
                       download="trust-lens.zip"
@@ -771,7 +788,7 @@ export default function Landing() {
             <span className="arch-label">Not a forensic tool — a warning system</span>
           </div>
           <p className="mt-4 text-xs text-muted-foreground/80">
-            © 2026 Trust Lens. Analysis runs on-device; transcripts stored only
+            © 2026 Trust Lens. Audio is never stored; transcripts are saved only
             with your explicit consent.
           </p>
         </div>
