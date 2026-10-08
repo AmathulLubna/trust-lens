@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+
 import { mutation, query } from "./_generated/server";
 
 /** Ledger of screened calls for the signed-in user, newest first. */
@@ -30,6 +30,10 @@ export const record = mutation({
     durationSec: v.number(),
     verdict: v.union(
       v.literal("safe"),
+      v.literal("no_strong_indicators"),
+      v.literal("inconclusive"),
+      v.literal("analysis_unavailable"),
+      v.literal("insufficient_audio"),
       v.literal("suspicious"),
       v.literal("flagged"),
     ),
@@ -62,6 +66,7 @@ export const record = mutation({
       ),
     ),
     notifiedCircle: v.optional(v.boolean()),
+    transcriptConsent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -80,33 +85,12 @@ export const record = mutation({
       voiceScore: args.voiceScore,
       behaviorScore: args.behaviorScore,
       flags: args.flags,
-      transcript: args.transcript,
-      notifiedCircle: args.notifiedCircle,
+      transcript: args.transcriptConsent === true ? args.transcript : undefined,
+      transcriptConsent: args.transcriptConsent === true,
+      notifiedCircle: false,
+      source: "demo",
+      notificationStatus: "demo_excluded",
     });
-
-    if (args.notifiedCircle) {
-      const trustedCircle = await ctx.db
-        .query("trustedCircle")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .filter((q) => q.eq(q.field("notifyOnFlag"), true))
-        .collect();
-      
-      const circleMembers = trustedCircle.map((member) => ({
-        id: member._id,
-        name: member.name,
-        phone: member.phone,
-        email: member.email,
-        relation: member.relation,
-      }));
-
-      if (circleMembers.length > 0) {
-        await ctx.scheduler.runAfter(0, internal.resend.sendAlerts, {
-          callerName: args.callerName || "an unknown caller",
-          callerNumber: args.callerNumber,
-          circleMembers,
-        });
-      }
-    }
 
     return id;
   },
@@ -120,10 +104,48 @@ export const clear = mutation({
     if (userId === null) {
       throw new Error("Not authenticated");
     }
+    const preferences = await ctx.db
+      .query("userSettings")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+    if (preferences)
+      await ctx.db.patch(preferences._id, { historyClearedAt: Date.now() });
+    else
+      await ctx.db.insert("userSettings", {
+        userId,
+        bannerAlert: true,
+        vibrationAlert: true,
+        fullscreenAlert: false,
+        autoNotifyCircle: false,
+        sensitivity: 2,
+        channelPhone: false,
+        channelWhatsapp: false,
+        historyClearedAt: Date.now(),
+      });
     const logs = await ctx.db
       .query("callLogs")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    await Promise.all(logs.map((log) => ctx.db.delete(log._id)));
+    for (const log of logs) await ctx.db.delete(log._id);
+    const uploads = await ctx.db
+      .query("audioUploads")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    for (const upload of uploads) {
+      await ctx.storage.delete(upload.storageId);
+      await ctx.db.delete(upload._id);
+    }
+    for (const table of [
+      "analysisRuns",
+      "alertEvents",
+      "messageChecks",
+      "numberChecks",
+    ] as const) {
+      const rows = await ctx.db
+        .query(table)
+        .filter((q) => q.eq(q.field("userId"), userId))
+        .collect();
+      for (const row of rows) await ctx.db.delete(row._id);
+    }
   },
 });

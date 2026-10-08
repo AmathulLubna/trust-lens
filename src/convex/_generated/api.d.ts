@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as audio from "../audio.js";
+import type * as acoustic from "../acoustic.js";
+import type * as alertPolicy from "../alertPolicy.js";
 import type * as alerts from "../alerts.js";
 import type * as analyze from "../analyze.js";
 import type * as auth from "../auth.js";
@@ -30,6 +33,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  audio: typeof audio;
+  acoustic: typeof acoustic;
+  alertPolicy: typeof alertPolicy;
   alerts: typeof alerts;
   analyze: typeof analyze;
   auth: typeof auth;
