@@ -1,21 +1,7 @@
-/**
- * TrustLens — Live Voice Analysis (demo engine)
- *
- * Runs entirely in the browser via the Web Audio API. It estimates a small set
- * of acoustic features that a lightweight synthetic-voice classifier would use:
- *
- *  - Pitch jitter        : cycle-to-cycle variation of the fundamental period.
- *                          Human speech is naturally jittery (≈3–8%);
- *                          most TTS / voice-clone pipelines are unnaturally
- *                          steady (often < 1.5%).
- *  - Prosody flatness    : low pitch variance over a rolling window — cloned
- *                          speech "reads" flatter than emotive human speech.
- *  - Spectral rolloff    : band-energy ratio between low and high frequencies;
- *                          vocoder output is often band-limited and dull.
- *
- * These heuristics are composed into a 0–100 `syntheticConfidence` for the
- * demonstration. This is NOT a certified deepfake classifier — it demonstrates
- * the product pipeline on real audio from your microphone.
+/** Deprecated browser diagnostics. Not used for production detection.
+ * Pitch-period changes are frame estimates, not clinical cycle jitter.
+ * flatness = 1 - min(1, pitch coefficient of variation / 0.3).
+ * Acoustic authenticity is supplied only by the Python checkpoint.
  */
 
 export interface VoiceMetrics {
@@ -25,7 +11,7 @@ export interface VoiceMetrics {
   jitterPct: number;
   flatness: number; // 0..1 — higher = flatter prosody
   rolloff: number; // 0..1 — higher = duller / band-limited
-  confidence: number; // 0..100 synthetic-voice confidence
+  confidence: null; // retired: no browser authenticity estimate
 }
 
 const FFT_SIZE = 2048;
@@ -43,7 +29,6 @@ const MAX_PITCH_HZ = 1000;
 // of ms whenever rAF throttled under load — exactly when a distorted
 // jitter/flatness read is most likely and least wanted.
 const HISTORY_WINDOW_MS = 2000;
-const CONFIDENCE_SMOOTHING = 0.35; // EMA weight on each new sample
 // Bridges brief mid-sentence dips (plosives, quick breaths) so voicing
 // doesn't flap on/off within a sentence and reset the jitter window —
 // mirrors the same constant in voice-processor.worklet.ts.
@@ -68,7 +53,7 @@ export class VoiceAnalyzer {
   private freq: Float32Array<ArrayBuffer>;
   private pitchHistory: { t: number; pitch: number | null }[] = [];
   private lastRawPitches: number[] = []; // last 3 raw pitches, for octave-jump rejection
-  private smoothedConfidence: number | null = null;
+
   private lastVoicedAt = -Infinity;
   private sampleRate = 44100;
 
@@ -128,7 +113,10 @@ export class VoiceAnalyzer {
     void this.initWorklet(ctx, src);
   }
 
-  private async initWorklet(ctx: AudioContext, src: MediaStreamAudioSourceNode): Promise<void> {
+  private async initWorklet(
+    ctx: AudioContext,
+    src: MediaStreamAudioSourceNode,
+  ): Promise<void> {
     try {
       if (!ctx.audioWorklet) return;
       const url = new URL("./voice-processor.worklet.js", import.meta.url);
@@ -172,7 +160,7 @@ export class VoiceAnalyzer {
     }
     this.pitchHistory = [];
     this.lastRawPitches = [];
-    this.smoothedConfidence = null;
+
     this.latestFromWorklet = null;
     this.lastVoicedAt = -Infinity;
   }
@@ -198,9 +186,7 @@ export class VoiceAnalyzer {
 
     analyser.getFloatFrequencyData(this.freq);
     const rolloff = m.voiced ? spectralRolloff(this.freq, this.sampleRate) : 0;
-    const confidence = m.voiced
-      ? this.combineConfidence(m.jitterPct, m.flatness, rolloff)
-      : this.decayConfidence();
+    const confidence = null;
 
     return {
       voiced: m.voiced,
@@ -232,7 +218,7 @@ export class VoiceAnalyzer {
         jitterPct: 0,
         flatness: 0,
         rolloff: 0,
-        confidence: this.decayConfidence(),
+        confidence: null,
       };
     }
 
@@ -241,7 +227,12 @@ export class VoiceAnalyzer {
       this.time.length - 2,
       Math.ceil(this.sampleRate / MIN_PITCH_HZ),
     );
-    const rawPitch = autocorrelatePitch(this.time, this.sampleRate, minLag, maxLag);
+    const rawPitch = autocorrelatePitch(
+      this.time,
+      this.sampleRate,
+      minLag,
+      maxLag,
+    );
     // Reject single-frame octave jumps (halving/doubling) that are common
     // artifacts of autocorrelation on noisy or speaker-relayed audio: if
     // this pitch is >45% away from the last two accepted pitches but a
@@ -252,7 +243,9 @@ export class VoiceAnalyzer {
 
     const cutoff = now - HISTORY_WINDOW_MS;
     const windowed = this.pitchHistory.filter((p) => p.t >= cutoff);
-    const voicedPitches = windowed.map((p) => p.pitch).filter((p): p is number => p !== null);
+    const voicedPitches = windowed
+      .map((p) => p.pitch)
+      .filter((p): p is number => p !== null);
     const meanPitch =
       voicedPitches.length > 0
         ? voicedPitches.reduce((a, b) => a + b, 0) / voicedPitches.length
@@ -270,18 +263,23 @@ export class VoiceAnalyzer {
         if (i > 0) absDiff += Math.abs(periods[i] - periods[i - 1]);
       }
       const meanPeriod = sum / periods.length;
-      jitterPct = meanPeriod > 0 ? (absDiff / (periods.length - 1) / meanPeriod) * 100 : 0;
-      // Prosody flatness = coefficient of variation of pitch, normalised.
-      const mean = voicedPitches.reduce((a, b) => a + b, 0) / voicedPitches.length;
+      jitterPct =
+        meanPeriod > 0
+          ? (absDiff / (periods.length - 1) / meanPeriod) * 100
+          : 0;
+      // Prosody flatness = one minus normalized pitch coefficient of variation.
+      const mean =
+        voicedPitches.reduce((a, b) => a + b, 0) / voicedPitches.length;
       const variance =
-        voicedPitches.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / voicedPitches.length;
+        voicedPitches.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
+        voicedPitches.length;
       const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-      flatness = Math.min(1, cv / 0.3);
+      flatness = 1 - Math.min(1, cv / 0.3);
     }
 
     analyser.getFloatFrequencyData(this.freq);
     const rolloff = spectralRolloff(this.freq, this.sampleRate);
-    const confidence = this.combineConfidence(jitterPct, flatness, rolloff);
+    const confidence = null;
 
     return {
       voiced: true,
@@ -292,51 +290,6 @@ export class VoiceAnalyzer {
       rolloff: round2(rolloff),
       confidence,
     };
-  }
-
-  /** Feature → synthetic-likelihood scores, shared by both the worklet and
-   *  main-thread paths. Deliberately conservative: a real human voice has
-   *  to clear an agreement gate before the engine will even hint at
-   *  "synthetic", so ordinary phone/laptop audio stays safely in the green
-   *  band instead of tripping the guard.
-   *    - Jitter is only damning when it is *unnaturally* steady (< ~1.2%).
-   *    - Prosody flatness only counts when pitch variation collapses.
-   *    - Spectral rolloff is hardware-dependent (mic band-limiting), so it
-   *      can contribute but never alone.
-   *  Smoothed with an EMA across calls so the on-screen number doesn't
-   *  flicker between adjacent windows that share nearly all the same
-   *  samples. */
-  private combineConfidence(jitterPct: number, flatness: number, rolloff: number): number {
-    const jitterScore = clamp01(1 - jitterPct / 2.4);
-    const flatnessScore = clamp01((flatness - 0.5) / 0.3);
-    const rolloffScore = clamp01((rolloff - 0.55) / 0.45);
-
-    const agree =
-      (jitterScore >= 0.6 ? 1 : 0) +
-      (flatnessScore >= 0.6 ? 1 : 0) +
-      (rolloffScore >= 0.6 ? 1 : 0);
-
-    // Unless at least two features independently point at synthetic speech,
-    // cap confidence deep inside the safe band so a single noisy signal can
-    // never flag a human voice.
-    const raw = 0.45 * jitterScore + 0.35 * flatnessScore + 0.2 * rolloffScore;
-    const instant = agree >= 2 ? clamp01(raw) * 100 : clamp01(raw) * 30;
-
-    this.smoothedConfidence =
-      this.smoothedConfidence === null
-        ? instant
-        : this.smoothedConfidence +
-          CONFIDENCE_SMOOTHING * (instant - this.smoothedConfidence);
-    return Math.round(clamp01(this.smoothedConfidence / 100) * 100);
-  }
-
-  /** While unvoiced, ease the displayed confidence back toward 0 instead of
-   *  snapping it, so a hangover-covered pause doesn't look like a sudden
-   *  "all clear" flicker in the UI. */
-  private decayConfidence(): number {
-    if (this.smoothedConfidence === null) return 0;
-    this.smoothedConfidence = this.smoothedConfidence * (1 - CONFIDENCE_SMOOTHING);
-    return Math.round(clamp01(this.smoothedConfidence / 100) * 100);
   }
 
   private pushPitch(t: number, pitch: number | null): void {
@@ -381,7 +334,7 @@ function emptyMetrics(): VoiceMetrics {
     jitterPct: 0,
     flatness: 0,
     rolloff: 0,
-    confidence: 0,
+    confidence: null,
   };
 }
 
@@ -432,7 +385,11 @@ function autocorrelatePitch(
   return sampleRate / bestLag;
 }
 
-function corrAt(buf: Float32Array<ArrayBuffer>, lag: number, e0: number): number {
+function corrAt(
+  buf: Float32Array<ArrayBuffer>,
+  lag: number,
+  e0: number,
+): number {
   let c = 0;
   let e = 1e-9;
   for (let i = 0; i < buf.length - lag; i++) {

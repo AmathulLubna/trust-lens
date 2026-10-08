@@ -1,4 +1,8 @@
-import type { Verdict } from "./trustlens";
+import {
+  scamFlagsFromText,
+  normalizedTranscriptText,
+  type Verdict,
+} from "./trustlens";
 
 export interface MessageSignal {
   id: string;
@@ -56,11 +60,14 @@ export const MESSAGE_SIGNALS: MessageSignal[] = [
     severity: "warning",
     test: (text) =>
       /(https?:\/\/|www\.)\S+/i.test(text) ||
-      /\b(bit\.ly|tinyurl|t\.co|wa\.me|forms\.gle|shorturl|cutt\.ly|rebrand\.ly)\b/i.test(text),
+      /\b(bit\.ly|tinyurl|t\.co|wa\.me|forms\.gle|shorturl|cutt\.ly|rebrand\.ly)\b/i.test(
+        text,
+      ),
   },
   {
     id: "bait",
-    label: "Uses common scam bait such as KYC, parcel, prize, job, or investment",
+    label:
+      "Uses common scam bait such as KYC, parcel, prize, job, or investment",
     weight: 18,
     severity: "warning",
     test: (text) =>
@@ -86,21 +93,41 @@ export const MESSAGE_SIGNALS: MessageSignal[] = [
     test: (_text, sender) => {
       if (!sender?.trim()) return false;
       const digits = sender.replace(/\D/g, "");
-      return digits.length >= 10 && !/\b(bank|sbi|hdfc|icici|axis|airtel|jio|amazon|flipkart|zomato|swiggy)\b/i.test(sender);
+      return (
+        digits.length >= 10 &&
+        !/\b(bank|sbi|hdfc|icici|axis|airtel|jio|amazon|flipkart|zomato|swiggy)\b/i.test(
+          sender,
+        )
+      );
     },
   },
 ];
 
-export function messageSignalsFromText(text: string, sender?: string): MessageSignal[] {
-  return MESSAGE_SIGNALS.filter((signal) => signal.test(text, sender));
+export function messageSignalsFromText(
+  text: string,
+  sender?: string,
+): MessageSignal[] {
+  void sender;
+  const flags = scamFlagsFromText(text);
+  return flags.map((f) => ({
+    id: f.id.replace(/^mic-/, ""),
+    label: f.label,
+    weight: 0,
+    severity: f.severity,
+    test: () => true,
+  }));
 }
 
 export function messageRiskFromSignals(signals: MessageSignal[]): number {
   const ids = new Set(signals.map((s) => s.id));
   let risk = signals.reduce((sum, s) => sum + s.weight, 0);
   if ((ids.has("money") || ids.has("otp")) && ids.has("urgency")) risk += 14;
-  if ((ids.has("money") || ids.has("otp")) && ids.has("impersonation")) risk += 14;
-  if (ids.has("random-sender") && (ids.has("money") || ids.has("otp") || ids.has("link"))) {
+  if ((ids.has("money") || ids.has("otp")) && ids.has("impersonation"))
+    risk += 14;
+  if (
+    ids.has("random-sender") &&
+    (ids.has("money") || ids.has("otp") || ids.has("link"))
+  ) {
     risk += 8;
   }
   if (ids.size === 1 && ids.has("random-sender")) risk = 12;
@@ -110,12 +137,12 @@ export function messageRiskFromSignals(signals: MessageSignal[]): number {
 export function verdictFromMessageRisk(risk: number): Verdict {
   if (risk >= 70) return "flagged";
   if (risk >= 40) return "suspicious";
-  return "safe";
+  return "no_strong_indicators";
 }
 
 export function isBenignMessage(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
-  if (!normalized) return true;
+  const normalized = normalizedTranscriptText(text);
+  if (!normalized) return false;
   const words = normalized.split(/\s+/).length;
   return (
     words <= 20 &&
@@ -130,16 +157,7 @@ export function calibrateMessageVerdict(
   text: string,
   signals: MessageSignal[],
 ): Verdict {
-  const ids = new Set(signals.map((s) => s.id));
-  const hasCriticalAsk = ids.has("money") || ids.has("otp") || ids.has("secrecy");
-  const hasPattern =
-    hasCriticalAsk ||
-    ((ids.has("urgency") || ids.has("impersonation")) && (ids.has("link") || ids.has("bait")));
-
-  if (isBenignMessage(text) && !hasPattern) return "safe";
-  if (verdict === "flagged" && !hasPattern) {
-    return signals.length > 0 ? "suspicious" : "safe";
-  }
-  if (verdict === "suspicious" && signals.length === 0) return "safe";
-  return verdict;
+  if (!text.trim()) return "inconclusive";
+  if (signals.length) return "suspicious";
+  return verdict === "safe" ? "no_strong_indicators" : verdict;
 }

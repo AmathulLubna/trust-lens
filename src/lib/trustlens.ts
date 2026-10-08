@@ -1,4 +1,12 @@
-export type Verdict = "safe" | "suspicious" | "flagged";
+/** safe/flagged remain readable only for historical and scripted records. */
+export type Verdict =
+  | "safe"
+  | "flagged"
+  | "suspicious"
+  | "no_strong_indicators"
+  | "inconclusive"
+  | "analysis_unavailable"
+  | "insufficient_audio";
 export type FlagKind = "voice" | "behavior" | "contact";
 export type Severity = "info" | "warning" | "critical";
 export type Channel = "phone" | "unknown";
@@ -94,10 +102,10 @@ export const VERDICT_META: Record<
   { label: string; stamp: string; tone: string; bar: string }
 > = {
   safe: {
-    label: "Safe",
-    stamp: "Verified · safe",
-    tone: "text-emerald-700 border-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-500 dark:bg-emerald-500/10",
-    bar: "bg-emerald-500",
+    label: "Legacy: no strong indicators",
+    stamp: "Legacy result · identity unverified",
+    tone: "text-slate-700 border-slate-400 bg-slate-50",
+    bar: "bg-slate-500",
   },
   suspicious: {
     label: "Suspicious",
@@ -110,6 +118,30 @@ export const VERDICT_META: Record<
     stamp: "Flagged · high risk",
     tone: "text-red-700 border-red-500 bg-red-50 dark:text-red-400 dark:border-red-500 dark:bg-red-500/10",
     bar: "bg-red-500",
+  },
+  no_strong_indicators: {
+    label: "No strong indicators",
+    stamp: "No strong indicators · identity unverified",
+    tone: "text-slate-700 border-slate-400 bg-slate-50",
+    bar: "bg-slate-500",
+  },
+  inconclusive: {
+    label: "Inconclusive",
+    stamp: "Inconclusive · verify independently",
+    tone: "text-amber-700 border-amber-500 bg-amber-50",
+    bar: "bg-amber-500",
+  },
+  analysis_unavailable: {
+    label: "Analysis unavailable",
+    stamp: "Analysis unavailable",
+    tone: "text-amber-700 border-amber-500 bg-amber-50",
+    bar: "bg-amber-500",
+  },
+  insufficient_audio: {
+    label: "Not enough usable audio",
+    stamp: "Not enough usable audio",
+    tone: "text-amber-700 border-amber-500 bg-amber-50",
+    bar: "bg-amber-500",
   },
 };
 
@@ -177,7 +209,7 @@ type VoiceEvidence = {
   rolloff?: number;
 };
 
-/* Language note: Groq Whisper auto-detects language per chunk, so the same
+/* Language note: local Whisper transcribes selected or auto-detected languages; the same
  * spoken audio can come back as English, romanized Hinglish, OR Devanagari
  * script depending on the run. Every pattern below therefore needs a
  * Devanagari counterpart alongside the Latin-script one — matching only
@@ -191,9 +223,11 @@ const SMALL_TALK_RE =
   /\b(hello|hi|hey|namaste|good (morning|afternoon|evening)|how are you|how r u|how are u|kaise ho|kaisi ho|kya haal|all good|theek ho|fine|doing well)\b|(नमस्ते|नमस्कार|कैसे हो|कैसी हो|क्या हाल|सब ठीक|आप कैसे हैं|शुभ (सुबह|दोपहर|शाम))/i;
 
 const RELATION_CLAIM_RE =
-  /\b(i am|i'm|it is|it's|this is|bol rahi|bol raha)\b.{0,32}\b(amma|maa|mummy|mom|mother|papa|dad|father|beta|beti|son|daughter|bhai|brother|behen|sister|uncle|aunt|aunty)\b|(मैं|यह)\s?.{0,16}(हूं|हूँ|बोल रह[ीा] हूं|बोल रह[ीा] हूँ).{0,32}(अम्मा|माँ|मां|मम्मी|पापा|बाबा|बेटा|बेटी|भाई|बहन|अंकल|आंटी)|(अम्मा|माँ|मां|मम्मी|पापा|बाबा)\s?(बोल रह[ीा] हूं|बोल रह[ीा] हूँ|यहाँ|है)/
+  /\b(i am|i'm|it is|it's|this is|bol rahi|bol raha)\b.{0,32}\b(amma|maa|mummy|mom|mother|papa|dad|father|beta|beti|son|daughter|bhai|brother|behen|sister|uncle|aunt|aunty)\b|(मैं|यह)\s?.{0,16}(हूं|हूँ|बोल रह[ीा] हूं|बोल रह[ीा] हूँ).{0,32}(अम्मा|माँ|मां|मम्मी|पापा|बाबा|बेटा|बेटी|भाई|बहन|अंकल|आंटी)|(अम्मा|माँ|मां|मम्मी|पापा|बाबा)\s?(बोल रह[ीा] हूं|बोल रह[ीा] हूँ|यहाँ|है)/;
 
-function normalizedTranscriptText(lines: TranscriptLine[] | string): string {
+export function normalizedTranscriptText(
+  lines: TranscriptLine[] | string,
+): string {
   const text =
     typeof lines === "string"
       ? lines
@@ -201,7 +235,12 @@ function normalizedTranscriptText(lines: TranscriptLine[] | string): string {
           .filter((l) => l.speaker !== "you")
           .map((l) => l.text)
           .join(" ");
-  return text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function wordCount(text: string): number {
@@ -210,7 +249,7 @@ function wordCount(text: string): number {
 
 export function isLowRiskSmallTalk(lines: TranscriptLine[] | string): boolean {
   const text = normalizedTranscriptText(lines);
-  if (!text) return true;
+  if (!text) return false;
   if (scamFlagsFromText(text).length > 0) return false;
   return wordCount(text) <= 18 && SMALL_TALK_RE.test(text);
 }
@@ -230,20 +269,14 @@ export function hasStrongScamEvidence(
     (has("urgency") || has("emergency") || has("secrecy")) &&
     (has("money") || has("otp"));
   const impersonationPattern =
-    hasRelationClaim(lines) && (has("emergency") || has("money") || has("otp") || has("secrecy"));
+    hasRelationClaim(lines) &&
+    (has("emergency") || has("money") || has("otp") || has("secrecy"));
   return hasCritical || pressureAndRequest || impersonationPattern;
 }
 
 export function hasStrongVoiceEvidence(metrics?: VoiceEvidence): boolean {
-  if (!metrics) return false;
-  const confidence = metrics.confidence ?? 0;
-  if (confidence >= 88) return true;
-  return (
-    confidence >= 78 &&
-    (metrics.jitterPct ?? 100) <= 1.2 &&
-    (metrics.flatness ?? 0) >= 0.72 &&
-    (metrics.rolloff ?? 0) >= 0.62
-  );
+  void metrics;
+  return false; // Browser diagnostic features are not trained authenticity evidence.
 }
 
 export function calibrateVerdict(
@@ -252,89 +285,78 @@ export function calibrateVerdict(
   lines: TranscriptLine[] | string,
   metrics?: VoiceEvidence,
 ): Verdict {
-  const strongScam = hasStrongScamEvidence(flags, lines);
-  const strongVoice = hasStrongVoiceEvidence(metrics);
-  const hasSoftMarkers = flags.length > 0 || hasRelationClaim(lines);
-
-  if (isLowRiskSmallTalk(lines) && !strongVoice) return "safe";
-  if (verdict === "flagged" && !strongScam && !strongVoice) {
-    return hasSoftMarkers ? "suspicious" : "safe";
-  }
-  if (verdict === "suspicious" && !hasSoftMarkers && !strongVoice) {
-    return "safe";
-  }
-  return verdict;
+  void metrics; // Browser diagnostics are not authenticity evidence.
+  if (!normalizedTranscriptText(lines))
+    return verdict === "flagged" || verdict === "suspicious"
+      ? "suspicious"
+      : "inconclusive";
+  if (hasStrongScamEvidence(flags, lines)) return "suspicious";
+  return verdict === "safe" ? "no_strong_indicators" : verdict;
 }
 
-/** Scan a chunk of (transcribed) speech for classic social-engineering
- *  markers: money/UPI demands, OTP/payment asks, urgency, secrecy
- *  pressure, manufactured emergencies, and common scam bait. Used by the
- *  live mic pipeline to surface markers as the conversation happens. */
+/** Clause-local request rules. Contextual warnings, never authenticity scores. */
 export function scamFlagsFromText(text: string): ScamFlag[] {
-  const t = text.toLowerCase();
-  const found = new Set<string>();
-  const out: ScamFlag[] = [];
-  const checks: Array<{
-    re: RegExp;
-    id: string;
-    label: string;
-    severity: Severity;
-  }> = [
-    {
-      // English/Hinglish + Devanagari: पैसे भेजो/भेजिए, रुपये, ट्रांसफर, ₹
-      re: /send money|send rupees|transfer|rupay|rupees|rs\.? ?\d|₹|पैसे (भेज|ट्रांसफर)|रुपये|रुपए|पैसा भेज|राशि भेज/i,
-      id: "money",
-      label: "Money transfer requested",
-      severity: "critical",
-    },
-    {
-      // English/Hinglish + Devanagari: यूपीआई, ओटीपी, पिन, पासवर्ड, बैंक खाता, आधार
-      re: /upi|otp|pin|password|bank (account|details)|card number|aadhaar|यूपीआई|ओटीपी|पिन नंबर|पासवर्ड|बैंक (खाता|विवरण)|कार्ड नंबर|आधार/i,
-      id: "otp",
-      label: "Payment / OTP / identity details requested",
-      severity: "critical",
-    },
-    {
-      // English/Hinglish + Devanagari: जल्दी, अभी, तुरंत, फौरन
-      re: /urgent|right now|immediately|jaldi|asap|right away|now now|जल्दी|अभी (के अभी|भेजो|करो)|तुरंत|फौरन|अभी करना (है|होगा)/i,
-      id: "urgency",
-      label: "Urgency language — pressure to act now",
-      severity: "warning",
-    },
-    {
-      // English/Hinglish + Devanagari: मत बताना, किसी को मत बताओ, गुप्त, राज़
-      re: /don'?t tell|do not tell|secret|just between|mat batana|don'?t (inform|share|say)|nobody (else|knows)|मत बताना|मत बताओ|किसी को (मत|नहीं) बताना|गुप्त रखना|राज़ रखना|सिर्फ हमारे बीच/i,
-      id: "secrecy",
-      label: "Secrecy pressure — “don't tell anyone”",
-      severity: "critical",
-    },
-    {
-      // English/Hinglish + Devanagari: एक्सीडेंट, सर्जरी, अस्पताल, पुलिस, गिरफ्तार, इमरजेंसी
-      re: /accident|surgery|hospital|police|arrested|in trouble|emergency|trouble|kidnap|एक्सीडेंट|दुर्घटना|सर्जरी|ऑपरेशन|अस्पताल|पुलिस|गिरफ्तार|मुसीबत|इमरजेंसी|अपहरण/i,
-      id: "emergency",
-      label: "Manufactured emergency framing",
-      severity: "warning",
-    },
-    {
-      // English/Hinglish + Devanagari: केवाईसी, लॉटरी, इनाम, कूरियर, पार्सल, रिफंड, बीमा
-      re: /kyc|lottery|prize|courier|parcel|fedex|refund|insurance|investment|double your|gift card|free gift|केवाईसी|लॉटरी|इनाम|कूरियर|पार्सल|रिफंड|बीमा|निवेश|मुफ़्त उपहार/i,
-      id: "bait",
-      label: "Common scam bait (KYC / lottery / parcel)",
-      severity: "warning",
-    },
-  ];
-  for (const c of checks) {
-    if (!found.has(c.id) && c.re.test(t)) {
-      found.add(c.id);
-      out.push({
-        id: `mic-${c.id}`,
-        label: c.label,
-        kind: "behavior",
-        severity: c.severity,
-      });
+  const clauses = text
+    .normalize("NFC")
+    .toLowerCase()
+    .split(/[.!?।;\n]+|\b(?:but|however|and)\b| और /iu);
+  const found = new Map<string, ScamFlag>();
+  for (let clause of clauses) {
+    if (
+      /\b(scam|scammer|example|warning|beware|education|lesson)\b|उदाहरण|सावधान|चेतावनी/u.test(
+        clause,
+      )
+    )
+      clause = clause.replace(/[“"]([^”"]*)[”"]/gu, " ");
+    const advice =
+      /(?:साझा|बताओ|भेजो)\s+(?:मत|नहीं)\s+(?:करें|करना)|\b(never|do not|don['’]?t|should not|must not)\s+(share|send|give|disclose|transfer|pay|provide)|\b(no need to|not asking (you )?to)\b|(?:ओटीपी|पासवर्ड|पैसे).{0,32}(?:मत|नहीं).{0,16}(?:बताओ|देना|दें|भेज|साझा)|(?:कभी|मत).{0,32}(?:ओटीपी|पासवर्ड).{0,32}(?:साझा|बताओ|बताएं|दें)/u.test(
+        clause,
+      );
+    const add = (id: string, label: string, severity: Severity) =>
+      found.set(id, { id: `mic-${id}`, label, kind: "behavior", severity });
+    if (!advice) {
+      if (
+        /\b(send|transfer|pay|wire|deposit)\b.{0,50}(?:\b(money|rupees|payment|funds|upi|rs)\b|₹|\d)|\b(paise|paisa)\b.{0,20}\b(bhejo|bhejiye|transfer)\b|(?:पैसे|पैसा|रुपये|रुपए|राशि).{0,24}(?:भेजो|भेजिए|भेजें|ट्रांसफर|जमा)/u.test(
+          clause,
+        )
+      )
+        add(
+          "money",
+          "Money transfer requested — verify independently",
+          "critical",
+        );
+      if (
+        /(?:\b(share|tell|give|send|provide|disclose|enter)\b.{0,40}\b(otp|pin|password|code|card number|bank details|aadhaar)\b)|(?:\b(otp|pin|password)\b.{0,25}\b(batao|bhejo|share|send)\b)|(?:ओटीपी|पिन|पासवर्ड|बैंक विवरण|आधार).{0,24}(?:बताओ|भेजो|दो|दें|साझा)/u.test(
+          clause,
+        )
+      )
+        add("otp", "Credential disclosure requested", "critical");
+      if (
+        /\b(authorize|approve|change)\b.{0,40}\b(beneficiary|payment|transfer|bank account)\b/u.test(
+          clause,
+        )
+      )
+        add(
+          "approval",
+          "Sensitive approval or beneficiary change requested",
+          "critical",
+        );
     }
+    if (
+      /\b(do not|don['’]?t) tell (anyone|them|papa|mom)|\b(keep (it|this) secret|just between us|mat batana)\b|किसी को (?:मत|नहीं) बता|मत बताना|गुप्त रखना/u.test(
+        clause,
+      )
+    )
+      add("secrecy", "Secrecy pressure", "warning");
+    if (
+      !advice &&
+      /\b(urgent|immediately|jaldi|asap|right now|right away)\b|जल्दी|तुरंत|फौरन/u.test(
+        clause,
+      )
+    )
+      add("urgency", "Pressure to act now", "warning");
   }
-  return out;
+  return [...found.values()];
 }
 
 export function relationHints(relation: string): string {
