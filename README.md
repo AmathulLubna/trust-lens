@@ -1,3 +1,5 @@
+> 8 October follow-up: the main build now includes `/demo/index.html`, linked from Live Guard. The standalone build outputs `dist-controlled-demo`. Controlled calls support Auto/Hindi/English and operator-configured short-lived TURN credentials. See the local implementation handoff and shared backend `LIVE_DEMO.md`; no relay or cloud deployment is implied.
+
 # TrustLens web prototype — SIH26104
 
 TrustLens screens consented recordings and nearby microphone audio for possible synthetic speech and sensitive requests. Acoustic model outputs, transcript warnings and input reliability are separate. It does not verify caller identity, intercept cellular/WhatsApp audio, or establish fraud. No accuracy or latency benchmark is claimed.

@@ -276,6 +276,11 @@ export default function LiveGuard() {
     phase === "capturing" || phase === "starting" || phase === "finalizing";
   return (
     <div className="mx-auto max-w-4xl space-y-5">
+      <section className="rounded-xl border p-4 space-y-2">
+        <h2 className="font-semibold">Controlled two-party call</h2>
+        <p className="text-sm">Make a consenting browser call and analyze the received caller audio. This prototype uses separate operator-issued demo credentials and requires a configured analysis server.</p>
+        {!active && <Button asChild><a href="/demo/index.html" target="_blank" rel="noopener noreferrer">Open browser call demo</a></Button>}
+      </section>
       <h1 className="text-2xl font-bold">Microphone screening</h1>
       <p>
         This screen analyzes nearby microphone audio. It cannot directly capture

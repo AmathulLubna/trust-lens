@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vite --config tests/ui/vite.config.ts"
+    "test:ui": "vite --config tests/ui/vite.config.ts",
+    "demo": "vite --config demo/vite.config.ts",
+    "build:demo": "tsc -b && vite build --config demo/vite.config.ts"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.96",

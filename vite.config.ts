@@ -21,6 +21,7 @@ export default defineConfig({
     sourcemap: false,
     // Optimize chunk splitting
     rollupOptions: {
+      input: { app: path.resolve(__dirname, 'index.html'), demo: path.resolve(__dirname, 'demo/index.html') },
       output: {
         // Optimize chunk size
         chunkFileNames: 'assets/[name]-[hash].js',
