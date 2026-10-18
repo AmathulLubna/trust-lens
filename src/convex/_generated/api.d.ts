@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as alertQueue from "../alertQueue.js";
 import type * as alerts from "../alerts.js";
 import type * as analyze from "../analyze.js";
 import type * as auth from "../auth.js";
@@ -19,7 +20,6 @@ import type * as messageCheck from "../messageCheck.js";
 import type * as messages from "../messages.js";
 import type * as numberLookup from "../numberLookup.js";
 import type * as numbers from "../numbers.js";
-import type * as resend from "../resend.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
 
@@ -30,6 +30,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  alertQueue: typeof alertQueue;
   alerts: typeof alerts;
   analyze: typeof analyze;
   auth: typeof auth;
@@ -41,7 +42,6 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   numberLookup: typeof numberLookup;
   numbers: typeof numbers;
-  resend: typeof resend;
   settings: typeof settings;
   users: typeof users;
 }>;

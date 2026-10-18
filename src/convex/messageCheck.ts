@@ -17,7 +17,7 @@ import {
   textFromGeminiResponse,
 } from "../lib/gemini";
 import { VERDICT_RANK } from "../lib/numbers";
-import type { Verdict } from "../lib/trustlens";
+import { scoreForVerdict, type Verdict } from "../lib/trustlens";
 
 const VERDICTS = ["safe", "suspicious", "flagged"] as const;
 
@@ -92,6 +92,8 @@ async function checkMessage(ctx: ActionCtx, text: string, sender?: string) {
           ? Math.max(45, Math.round(risk * 0.9))
           : Math.min(35, Math.round(risk * 0.8));
   const reasons = signals.map((s) => s.label).slice(0, 8);
+  const finalRisk = scoreForVerdict(risk, verdict);
+  if (ai && verdict !== heuristicVerdict) reasons.unshift(...ai.markers.map(marker => `AI: ${marker}`));
 
   const runMutation = ctx.runMutation as unknown as (
     fn: string,
@@ -107,7 +109,7 @@ async function checkMessage(ctx: ActionCtx, text: string, sender?: string) {
   await runMutation("messages:recordCheck", {
     sender: sender?.trim() || undefined,
     messagePreview: trimmed.slice(0, 180),
-    riskScore: risk,
+    riskScore: finalRisk,
     verdict,
     reasons,
     createdAt: Date.now(),
@@ -117,7 +119,7 @@ async function checkMessage(ctx: ActionCtx, text: string, sender?: string) {
     ok: true,
     sender: sender?.trim() || null,
     textPreview: trimmed.slice(0, 240),
-    riskScore: risk,
+    riskScore: finalRisk,
     heuristicVerdict,
     verdict,
     confidence,
@@ -184,7 +186,7 @@ async function geminiMessageOpinion(
         maxOutputTokens: 500,
         responseMimeType: "application/json",
       },
-    });
+    }, { timeout: 20_000 });
     const parsed = JSON.parse(stripJsonFences(textFromGeminiResponse(data))) as {
       verdict?: string;
       confidence?: number;
@@ -236,7 +238,7 @@ async function groqMessageOpinion(
         max_tokens: 500,
         response_format: { type: "json_object" },
       },
-      { headers: { Authorization: `Bearer ${apiKey}` } },
+      { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 20_000 },
     );
     const content: string = data?.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(stripJsonFences(content)) as {

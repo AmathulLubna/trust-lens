@@ -35,6 +35,7 @@ const schema = defineSchema(
     // TrustLens — call screening ledger
     callLogs: defineTable({
       userId: v.id("users"),
+      sessionId: v.optional(v.string()),
       callerName: v.optional(v.string()),
       callerNumber: v.optional(v.string()),
       channel: v.union(
@@ -80,7 +81,15 @@ const schema = defineSchema(
       notifiedCircle: v.optional(v.boolean()),
     })
       .index("by_user", ["userId"])
+      .index("by_user_session", ["userId", "sessionId"])
       .index("by_user_time", ["userId", "startedAt"]),
+
+    circleAlerts: defineTable({
+      userId: v.id("users"),
+      sessionId: v.string(),
+      createdAt: v.number(),
+      status: v.union(v.literal("queued"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
+    }).index("by_user_session", ["userId", "sessionId"]),
 
     // TrustLens — family safety net
     trustedCircle: defineTable({
@@ -144,7 +153,7 @@ const schema = defineSchema(
 
   },
   {
-    schemaValidation: false,
+    schemaValidation: true,
   },
 );
 

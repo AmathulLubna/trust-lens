@@ -1,4 +1,10 @@
 export type Verdict = "safe" | "suspicious" | "flagged";
+
+/** Keep the displayed score within the final verdict's documented band. */
+export function scoreForVerdict(score: number, verdict: Verdict): number {
+  const [min, max] = verdict === "flagged" ? [70, 100] : verdict === "suspicious" ? [40, 69] : [0, 39];
+  return Math.max(min, Math.min(max, Math.round(Number.isFinite(score) ? score : min)));
+}
 export type FlagKind = "voice" | "behavior" | "contact";
 export type Severity = "info" | "warning" | "critical";
 export type Channel = "phone" | "unknown";

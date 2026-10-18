@@ -4,7 +4,6 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import axios from "axios";
 import { action, type ActionCtx } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
 import {
   KNOWN_SCAM_NUMBERS,
   normalizeNumber,
@@ -15,7 +14,7 @@ import {
   THRESHOLD_SUSPICIOUS,
   VERDICT_RANK,
 } from "../lib/numbers";
-import type { Verdict } from "../lib/trustlens";
+import { scoreForVerdict, type Verdict } from "../lib/trustlens";
 import { GROQ_CHAT_URL, GROQ_TEXT_MODEL, stripJsonFences } from "../lib/groq";
 
 const VERDICTS = ["safe", "suspicious", "flagged"] as const;
@@ -90,15 +89,15 @@ async function lookupNumber(ctx: ActionCtx, raw: string) {
   const runQuery = ctx.runQuery as unknown as (
     fn: string,
     args: { number: string },
-  ) => Promise<Doc<"numberReports">[] | null>;
+  ) => Promise<{ category: string; note?: string; createdAt: number }[] | null>;
   const reports =
     (await runQuery("numbers:reportsForNumber", { number: normalized })) ?? [];
-  const reporterIds = new Set(reports.map((r) => r.userId));
-  if (reporterIds.size > 0) {
-    risk += Math.min(40, reporterIds.size * 12);
-    const cats = [...new Set(reports.map((r) => r.category).filter(Boolean))];
+  const negativeReports = reports.filter(r => r.category !== "legit");
+  if (negativeReports.length > 0) {
+    risk += Math.min(40, negativeReports.length * 12);
+    const cats = [...new Set(negativeReports.map((r) => r.category).filter(Boolean))];
     reasons.push(
-      `${reporterIds.size} teammate report${reporterIds.size > 1 ? "s" : ""}` +
+      `${negativeReports.length} teammate report${negativeReports.length > 1 ? "s" : ""}` +
         (cats.length ? ` — ${cats.join(", ")}` : ""),
     );
   }
@@ -136,6 +135,8 @@ async function lookupNumber(ctx: ActionCtx, raw: string) {
     : heuristicVerdict === "flagged"
       ? risk
       : Math.round(risk * 0.8);
+  const finalRisk = scoreForVerdict(risk, verdict);
+  if (ai && verdict !== heuristicVerdict) reasons.unshift(...ai.markers.map(marker => `AI: ${marker}`));
 
   const runMutation = ctx.runMutation as unknown as (
     fn: string,
@@ -151,7 +152,7 @@ async function lookupNumber(ctx: ActionCtx, raw: string) {
   await runMutation("numbers:recordCheck", {
     number: normalized,
     display,
-    riskScore: risk,
+    riskScore: finalRisk,
     verdict,
     reasons: reasons.slice(0, 6),
     createdAt: Date.now(),
@@ -161,7 +162,7 @@ async function lookupNumber(ctx: ActionCtx, raw: string) {
     ok: true,
     number: normalized,
     display,
-    riskScore: risk,
+    riskScore: finalRisk,
     heuristicVerdict,
     verdict,
     confidence,
@@ -222,7 +223,7 @@ async function groqNumberOpinion(
         max_tokens: 500,
         response_format: { type: "json_object" },
       },
-      { headers: { Authorization: `Bearer ${apiKey}` } },
+      { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 20_000 },
     );
     const content: string = data?.choices?.[0]?.message?.content ?? "";
     const parsed = JSON.parse(stripJsonFences(content)) as {

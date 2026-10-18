@@ -1,12 +1,11 @@
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
-import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  { ignores: ["dist", "src/convex/_generated/**", "vly-toolbar-readonly.tsx"] },
   {
     extends: [
       js.configs.recommended,
@@ -20,14 +19,10 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": [
-        "warn",
-        { allowConstantExport: true },
-      ],
+      // Fast Refresh export restrictions do not apply: vite.config.ts disables HMR.
     },
   },
 );

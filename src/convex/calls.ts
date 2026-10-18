@@ -1,7 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
+import { queueCircleAlert } from "./alertQueue";
 
 /** Ledger of screened calls for the signed-in user, newest first. */
 export const list = query({
@@ -20,6 +20,8 @@ export const list = query({
 
 export const record = mutation({
   args: {
+    sessionId: v.string(),
+    archiveTranscript: v.optional(v.boolean()),
     callerName: v.optional(v.string()),
     callerNumber: v.optional(v.string()),
     channel: v.union(
@@ -61,15 +63,21 @@ export const record = mutation({
         }),
       ),
     ),
-    notifiedCircle: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) {
       throw new Error("Not authenticated");
     }
+    if (!args.sessionId || args.sessionId.length > 128) throw new Error("Invalid session ID");
+    const existing = await ctx.db.query("callLogs")
+      .withIndex("by_user_session", q => q.eq("userId", userId).eq("sessionId", args.sessionId)).first();
+    if (existing) return existing._id;
+    const alert = await ctx.db.query("circleAlerts")
+      .withIndex("by_user_session", q => q.eq("userId", userId).eq("sessionId", args.sessionId)).first();
     const id = await ctx.db.insert("callLogs", {
       userId,
+      sessionId: args.sessionId,
       callerName: args.callerName,
       callerNumber: args.callerNumber,
       channel: args.channel,
@@ -80,33 +88,11 @@ export const record = mutation({
       voiceScore: args.voiceScore,
       behaviorScore: args.behaviorScore,
       flags: args.flags,
-      transcript: args.transcript,
-      notifiedCircle: args.notifiedCircle,
+      transcript: args.archiveTranscript === true ? args.transcript : undefined,
+      notifiedCircle: alert?.status === "sent",
     });
 
-    if (args.notifiedCircle) {
-      const trustedCircle = await ctx.db
-        .query("trustedCircle")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .filter((q) => q.eq(q.field("notifyOnFlag"), true))
-        .collect();
-      
-      const circleMembers = trustedCircle.map((member) => ({
-        id: member._id,
-        name: member.name,
-        phone: member.phone,
-        email: member.email,
-        relation: member.relation,
-      }));
-
-      if (circleMembers.length > 0) {
-        await ctx.scheduler.runAfter(0, internal.resend.sendAlerts, {
-          callerName: args.callerName || "an unknown caller",
-          callerNumber: args.callerNumber,
-          circleMembers,
-        });
-      }
-    }
+    if (args.verdict === "flagged") await queueCircleAlert(ctx, userId, args.sessionId);
 
     return id;
   },
@@ -125,5 +111,8 @@ export const clear = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     await Promise.all(logs.map((log) => ctx.db.delete(log._id)));
+    const alerts = await ctx.db.query("circleAlerts")
+      .withIndex("by_user_session", q => q.eq("userId", userId)).collect();
+    await Promise.all(alerts.map(alert => ctx.db.delete(alert._id)));
   },
 });

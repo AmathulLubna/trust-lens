@@ -109,7 +109,7 @@ class VoiceMetricsProcessor extends AudioWorkletProcessor {
         voicedPitches.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
         voicedPitches.length;
       const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-      flatness = Math.min(1, cv / 0.3);
+      flatness = 1 - Math.min(1, cv / 0.3);
     }
 
     this.port.postMessage({

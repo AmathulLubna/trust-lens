@@ -258,7 +258,7 @@ function LedgerRow({
           )}
           {log.notifiedCircle && (
             <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-400">
-              ✓ Alert circle notified on this call.
+              ✓ Alert email accepted for at least one enabled circle contact.
             </p>
           )}
         </div>

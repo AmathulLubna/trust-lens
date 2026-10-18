@@ -16,6 +16,8 @@ export const emailOtp = Email({
     return generateRandomString(random, alphabet, 6);
   },
   async sendVerificationRequest({ identifier: email, token }) {
+    const apiKey = process.env.OTP_EMAIL_API_KEY;
+    if (!apiKey) throw new Error("Email sign-in is not configured. Set OTP_EMAIL_API_KEY.");
     try {
       await axios.post(
         "https://auth.freebuff.app/send_otp",
@@ -26,12 +28,14 @@ export const emailOtp = Email({
         },
         {
           headers: {
-            "x-api-key": "fb_email_2crN1hqIArZP2bEfvjp5Qik4",
+            "x-api-key": apiKey,
           },
+          timeout: 15_000,
         },
       );
-    } catch (error) {
-      throw new Error(JSON.stringify(error));
+    } catch {
+      // Axios errors contain authorization headers and the OTP request body.
+      throw new Error("Could not send the sign-in code. Please retry.");
     }
   },
 });

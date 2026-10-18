@@ -1,16 +1,20 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { normalizeNumber, prettyNumber } from "../lib/numbers";
+import { normalizeNumber, prettyNumber, REPORT_CATEGORIES, isValidNumber } from "../lib/numbers";
 
 /** Community reports for one normalized number (used by the lookup action). */
 export const reportsForNumber = query({
   args: { number: v.string() },
   handler: async (ctx, args) => {
-    return ctx.db
+    if (await getAuthUserId(ctx) === null) throw new Error("Not authenticated");
+    const reports = await ctx.db
       .query("numberReports")
-      .withIndex("by_number", (q) => q.eq("number", args.number))
+      .withIndex("by_number", (q) => q.eq("number", normalizeNumber(args.number)))
       .take(50);
+    // Deduplicate internally without publishing stable reporter identifiers.
+    const unique = new Map(reports.map(report => [report.userId, report]));
+    return [...unique.values()].map(({ category, note, createdAt }) => ({ category, note, createdAt }));
   },
 });
 
@@ -29,6 +33,9 @@ export const reportNumber = mutation({
       throw new Error("Not authenticated");
     }
     const normalized = normalizeNumber(args.number);
+    if (!isValidNumber(args.number)) throw new Error("Invalid phone number");
+    if (!REPORT_CATEGORIES.some(c => c.value === args.category)) throw new Error("Invalid report category");
+    if ((args.note?.length ?? 0) > 1000) throw new Error("Keep report notes under 1,000 characters");
     const existing = await ctx.db
       .query("numberReports")
       .withIndex("by_number", (q) => q.eq("number", normalized))

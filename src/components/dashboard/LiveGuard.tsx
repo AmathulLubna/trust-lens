@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/select";
 import { ArchCard, ScoreMeter, VerdictStamp } from "@/components/dashboard/shared";
 import { api } from "@/convex/_generated/api";
-import { VoiceAnalyzer, type VoiceMetrics } from "@/lib/voice-analysis";
+import { type VoiceMetrics } from "@/lib/voice-analysis";
+import { useLiveVoice } from "@/hooks/use-live-voice";
 import { VERDICT_RANK } from "@/lib/numbers";
 import {
   behaviorFromFlags,
@@ -22,7 +23,6 @@ import {
   voiceRamp,
   type ScamFlag,
   type TranscriptLine,
-  type Verdict,
 } from "@/lib/trustlens";
 import { cn } from "@/lib/utils";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -45,7 +45,7 @@ import {
   Timer,
   Vibrate,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type Phase = "setup" | "ringing" | "active" | "ended";
@@ -59,15 +59,19 @@ export default function LiveGuard() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [saveTranscript, setSaveTranscript] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [shownLines, setShownLines] = useState<TranscriptLine[]>([]);
-  const [revealedFlags, setRevealedFlags] = useState<ScamFlag[]>([]);
+  const shownLines: TranscriptLine[] = SCENARIO.filter(line => elapsed >= line.t).map(({ speaker, text, t }) => ({ speaker, text, t }));
+  const revealedFlags = SCENARIO.filter(line => elapsed >= line.t).flatMap(line => line.flag ? [line.flag] : []);
   const [flaggedAt, setFlaggedAt] = useState<number | null>(null);
   const [seed] = useState(() => Math.random() * 100);
-  const [notified, setNotified] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const settings = useQuery(api.settings.get);
-  const circle = useQuery(api.circle.list);
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+  const [archiveFinished, setArchiveFinished] = useState(false);
+  const [archiveFailed, setArchiveFailed] = useState(false);
+  const [archiveRetry, setArchiveRetry] = useState(0);
+  const archiveAttempt = useRef<string | null>(null);
+  const startedAt = useRef(0);
+  const logs = useQuery(api.calls.list);
+  const notified = logs?.find(log => log.sessionId === sessionId)?.notifiedCircle ? "Your circle" : null;
+  const saving = phase === "ended" && !archiveFinished;
   const recordCall = useMutation(api.calls.record);
 
   const voiceScore = useMemo(() => voiceRamp(elapsed, seed), [elapsed, seed]);
@@ -80,61 +84,40 @@ export default function LiveGuard() {
     if (phase !== "active") return;
     const start = Date.now();
     const timer = window.setInterval(() => {
-      setElapsed((Date.now() - start) / 1000);
+      const next = Math.min(SCENARIO_END_S, (Date.now() - start) / 1000);
+      setElapsed(next);
+      const flags = SCENARIO.filter(line => next >= line.t).flatMap(line => line.flag ? [line.flag] : []);
+      if (verdictFromRisk(riskFrom(voiceRamp(next, seed), behaviorFromFlags(flags))) === "flagged") {
+        setFlaggedAt(previous => previous ?? next);
+      }
+      if (next >= SCENARIO_END_S) setPhase("ended");
     }, 100);
     return () => window.clearInterval(timer);
-  }, [phase]);
-
-  /* Reveal transcript lines + flags as the conversation progresses. */
-  useEffect(() => {
-    if (phase !== "active") return;
-    for (const line of SCENARIO) {
-      if (elapsed >= line.t) {
-        setShownLines((prev) =>
-          prev.some((l) => l.t === line.t)
-            ? prev
-            : [...prev, { speaker: line.speaker, text: line.text, t: line.t }],
-        );
-        if (line.flag) {
-          setRevealedFlags((prev) =>
-            prev.some((f) => f.id === line.flag!.id) ? prev : [...prev, line.flag!],
-          );
-        }
-      }
-    }
-  }, [elapsed, phase]);
-
-  /* Auto-end when the script finishes. */
-  useEffect(() => {
-    if (phase === "active" && elapsed >= SCENARIO_END_S) {
-      setPhase("ended");
-    }
-  }, [elapsed, phase]);
+  }, [phase, seed]);
 
   /* Intervention: banner + vibration the moment the verdict is "flagged". */
   useEffect(() => {
-    if (phase === "active" && verdict === "flagged" && flaggedAt === null) {
-      setFlaggedAt(elapsed);
+    if (phase === "active" && flaggedAt !== null) {
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate([120, 60, 120, 60, 240]);
       }
     }
-  }, [phase, verdict, flaggedAt, elapsed]);
+  }, [phase, flaggedAt]);
 
   /* Persist the call to the ledger once it ends. */
   useEffect(() => {
-    if (phase !== "ended" || saving) return;
-    setSaving(true);
-    const willNotify = (settings?.autoNotifyCircle ?? true) && verdict === "flagged";
-    const firstMember = circle?.[0]?.name;
-    if (willNotify && firstMember) setNotified(firstMember);
+    const attempt = `${sessionId}:${archiveRetry}`;
+    if (phase !== "ended" || archiveAttempt.current === attempt) return;
+    archiveAttempt.current = attempt;
     void (async () => {
       try {
         await recordCall({
+          sessionId,
+          archiveTranscript: saveTranscript,
           callerName: CALLER.name,
           callerNumber: CALLER.number,
           channel: "phone",
-          startedAt: Date.now() - elapsed * 1000,
+          startedAt: startedAt.current,
           durationSec: Math.round(elapsed),
           verdict,
           riskScore: risk,
@@ -142,27 +125,28 @@ export default function LiveGuard() {
           behaviorScore,
           flags: revealedFlags,
           transcript: saveTranscript ? shownLines : undefined,
-          notifiedCircle: willNotify,
         });
         toast.success("Call archived to your ledger");
       } catch (err) {
         console.error("Failed to record call", err);
         toast.error("Could not archive the call");
+        if (archiveAttempt.current === attempt) setArchiveFailed(true);
       } finally {
-        setSaving(false);
+        if (archiveAttempt.current === attempt) setArchiveFinished(true);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, sessionId, archiveRetry, elapsed, verdict, risk, voiceScore, behaviorScore, revealedFlags, shownLines, saveTranscript, recordCall]);
 
   function reset() {
     setPhase("setup");
     setElapsed(0);
-    setShownLines([]);
-    setRevealedFlags([]);
     setFlaggedAt(null);
-    setNotified(null);
-    setSaving(false);
+    setSessionId(crypto.randomUUID());
+    setArchiveFinished(false);
+    setArchiveFailed(false);
+    setArchiveRetry(0);
+    archiveAttempt.current = null;
+    startedAt.current = 0;
   }
 
   return (
@@ -200,12 +184,28 @@ export default function LiveGuard() {
         </div>
       </div>
 
+      {mode === "scenario" && archiveFailed && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+          <p className="text-sm">The call result could not be saved. Retry to archive this same call.</p>
+          <Button type="button" disabled={saving} onClick={() => {
+            setArchiveFailed(false);
+            setArchiveFinished(false);
+            setArchiveRetry(retry => retry + 1);
+          }}>
+            Retry saving call
+          </Button>
+        </div>
+      )}
+
       {mode === "scenario" ? (
         <ScenarioPanel
           phase={phase}
           saveTranscript={saveTranscript}
           setSaveTranscript={setSaveTranscript}
-          onAnswer={() => setPhase("active")}
+          onAnswer={() => {
+            startedAt.current = Date.now();
+            setPhase("active");
+          }}
           onEnd={() => setPhase("ended")}
           onReset={reset}
           elapsed={elapsed}
@@ -578,12 +578,12 @@ function VerdictSummary(props: {
       {verdict === "flagged" && notified && (
         <p className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10">
           <Brain className="size-4" />
-          Alert circle notified — {notified} has been alerted.
+          Alert email accepted for at least one enabled circle contact.
         </p>
       )}
       {verdict === "flagged" && !notified && (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Add a circle member to auto-alert your team on flagged calls.
+          No alert delivery confirmed yet. Check your notification setting and circle contacts.
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
@@ -608,342 +608,16 @@ const VERDICT_HEADLINE: Record<"safe" | "suspicious" | "flagged", string> = {
 /* ─────────────────────────── Mic check ─────────────────────────── */
 
 function MicPanel() {
-  const [micOn, setMicOn] = useState(false);
-  const [micError, setMicError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<VoiceMetrics | null>(null);
-  const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
-  const [aiResult, setAiResult] = useState<AiVerdictResult | null>(null);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [sessionActive, setSessionActive] = useState(false);
-  // Whisper auto-detects language per 6 s segment when this isn't pinned —
-  // so the SAME caller could flip between English and Hindi transcription
-  // mid-call, and scam-marker detection (which now covers both scripts,
-  // but still needs a stable script per line to build coherent sentences)
-  // would see it as disjointed chunks. Pin it up front for a live session.
-  const [language, setLanguage] = useState<"auto" | "en" | "hi">("auto");
-  const languageRef = useRef<"auto" | "en" | "hi">("auto");
-  useEffect(() => {
-    languageRef.current = language;
-  }, [language]);
-
-  const recordCall = useMutation(api.calls.record);
-
-  const analyzerRef = useRef<VoiceAnalyzer | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const segmentTimerRef = useRef<number | null>(null);
-  const micOnRef = useRef(false);
-  const metricsRef = useRef<VoiceMetrics | null>(null);
-  const transcriptRef = useRef<TranscriptLine[]>([]);
-  const lastAiAtRef = useRef(0);
-  const startedAtRef = useRef(0);
-  const busyRef = useRef(false);
-  const transcribingRef = useRef(false);
-  const stoppingRef = useRef(false);
-
-  const runGroq = useAction(api.analyze.groqVerdict);
-  const transcribe = useAction(api.analyze.groqTranscribe);
-
-  /* Cross-check the current features + transcript with Groq. Runs
-   * automatically after each transcribed chunk and on a 5 s tick. */
-  const runAiVerdict = useCallback(
-    async (force: boolean) => {
-      if (busyRef.current) return;
-      const now = Date.now();
-      if (!force && now - lastAiAtRef.current < 4000) return;
-      lastAiAtRef.current = now;
-      busyRef.current = true;
-      setAiBusy(true);
-      const m = metricsRef.current;
-      const lines = transcriptRef.current;
-      const flags = lines.flatMap((l) => scamFlagsFromText(l.text));
-      try {
-        const res = (await runGroq({
-          voiceMetrics:
-            m && m.voiced
-              ? {
-                  pitchHz: m.pitchHz ?? undefined,
-                  jitterPct: m.jitterPct,
-                  flatness: m.flatness,
-                  rolloff: m.rolloff,
-                  confidence: m.confidence,
-                }
-              : undefined,
-          transcript: lines.map((l) => ({ speaker: l.speaker, text: l.text })),
-          flags: flags.map((f) => ({ id: f.id, label: f.label, severity: f.severity })),
-          channel: "mic",
-        })) as AiVerdictResult;
-        setAiResult(res);
-      } catch {
-        setAiResult({ ok: false, message: "The AI request failed — please try again." });
-      } finally {
-        busyRef.current = false;
-        setAiBusy(false);
-      }
-    },
-    [runGroq],
-  );
-
-  /* Transcribe one self-contained audio segment via Groq Whisper and feed
-   * the text back into the scam-pattern agent.
-   *
-   * IMPORTANT: a MediaRecorder only writes its container header (WebM EBML
-   * header + track info) into the FIRST ondataavailable chunk of a
-   * recording session. Earlier code kept one long-running recorder and
-   * periodically spliced out+cleared the accumulated chunk buffer to
-   * "flush" it — which meant every flush after the first sent Whisper a
-   * WebM blob with NO header, i.e. undecodable audio. That silently
-   * corrupted (or zeroed out) every transcript after the first sentence,
-   * which is why words were getting dropped/garbled.
-   *
-   * Fix: each segment comes from its OWN MediaRecorder instance (started
-   * fresh, stopped to close out a complete, header-included file), so
-   * every blob handed to Whisper is independently valid. */
-  const flushTranscription = useCallback(
-    async (blob: Blob, mime: string) => {
-      if (blob.size === 0 || transcribingRef.current) return;
-      transcribingRef.current = true;
-      setTranscribing(true);
-      try {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        let bin = "";
-        const step = 0x8000;
-        for (let i = 0; i < bytes.length; i += step) {
-          bin += String.fromCharCode(...bytes.subarray(i, i + step));
-        }
-        const ext = mime.includes("mp4") ? "m4a" : "webm";
-        const res = (await transcribe({
-          audioBase64: btoa(bin),
-          mimeType: mime,
-          filename: `segment.${ext}`,
-          language: languageRef.current,
-        })) as { ok: boolean; text?: string; message?: string };
-        if (res.ok && res.text?.trim()) {
-          const line: TranscriptLine = {
-            speaker: "caller",
-            text: res.text.trim(),
-            t: Math.round(((Date.now() - startedAtRef.current) / 1000) * 10) / 10,
-          };
-          transcriptRef.current = [...transcriptRef.current, line];
-          setTranscript(transcriptRef.current);
-          void runAiVerdict(true);
-        }
-      } catch {
-        // A failed segment is non-fatal — the acoustics keep running and
-        // the next segment picks up new audio.
-      } finally {
-        transcribingRef.current = false;
-        setTranscribing(false);
-      }
-    },
-    [transcribe, runAiVerdict],
-  );
-
-  /* Live acoustic feature loop.
-   * Deliberately timer-driven, not requestAnimationFrame: rAF is fully
-   * paused by the browser on a hidden/backgrounded tab, which would kill
-   * voice screening the moment the phone screen locks or the user swaps
-   * apps mid-call — exactly when this feature needs to keep working.
-   * setInterval keeps running in the background (throttled, not stopped),
-   * so the guard degrades gracefully instead of going silent. */
-  useEffect(() => {
-    if (!micOn) return;
-    const analyzer = analyzerRef.current;
-    if (!analyzer) return;
-    const id = window.setInterval(() => {
-      const m = analyzer.analyze();
-      metricsRef.current = m;
-      setMetrics(m);
-    }, 50); // ~20 Hz — plenty for jitter/flatness, cheap enough to background
-    return () => window.clearInterval(id);
-  }, [micOn]);
-
-  /* Periodic AI refresh while listening. */
-  useEffect(() => {
-    if (!micOn) return;
-    const t = window.setInterval(() => void runAiVerdict(false), 5000);
-    return () => window.clearInterval(t);
-  }, [micOn, runAiVerdict]);
-
-  /* Transcription cadence: close out the current recorder segment every
-   * ~6 s. Stopping a MediaRecorder finalizes a complete, independently
-   * decodable file (see flushTranscription's comment), and onstop
-   * immediately starts the next segment so there's no audio gap. */
-
-  /* Cleanup on unmount. */
-  useEffect(() => {
-    return () => {
-      stoppingRef.current = true;
-      if (segmentTimerRef.current !== null) window.clearTimeout(segmentTimerRef.current);
-      if (recorderRef.current && recorderRef.current.state !== "inactive") {
-        recorderRef.current.stop();
-      }
-      recorderRef.current = null;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      analyzerRef.current?.stop();
-      analyzerRef.current = null;
-    };
-  }, []);
-
-  async function startMic() {
-    setMicError(null);
-    if (!sessionActive) {
-      setSessionActive(true);
-      setTranscript([]);
-      transcriptRef.current = [];
-      setAiResult(null);
-      setSaved(false);
-      lastAiAtRef.current = 0;
-      startedAtRef.current = Date.now();
-    }
-    stoppingRef.current = false;
-    try {
-      const analyzer = new VoiceAnalyzer();
-      const stream = await analyzer.start();
-      analyzerRef.current = analyzer;
-      streamRef.current = stream;
-      micOnRef.current = true;
-      setMicOn(true);
-      startRecordingSegment();
-    } catch {
-      micOnRef.current = false;
-      setMicError(
-        "Microphone unavailable — allow mic access, or use the scenario call to see the pipeline.",
-      );
-    }
-  }
-
-  /* Start one ~6 s recorder segment on the live stream. Each segment is its
-   * own MediaRecorder instance so recorder.stop() always finalizes a
-   * complete, self-contained, Whisper-decodable file — see the big comment
-   * on flushTranscription for why that matters. */
-  function startRecordingSegment() {
-    const stream = streamRef.current;
-    if (!stream || !micOnRef.current) return;
-    const mime = pickRecorderMime();
-    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    const segmentChunks: Blob[] = [];
-    recorderRef.current = recorder;
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) segmentChunks.push(e.data);
-    };
-    recorder.onstop = () => {
-      if (segmentChunks.length > 0) {
-        const type = segmentChunks[0].type || mime || "audio/webm";
-        void flushTranscription(new Blob(segmentChunks, { type }), type);
-      }
-      if (!stoppingRef.current && micOnRef.current) {
-        startRecordingSegment();
-      }
-    };
-    recorder.start();
-    segmentTimerRef.current = window.setTimeout(() => {
-      if (recorderRef.current === recorder && recorder.state !== "inactive") {
-        recorder.stop();
-      }
-    }, 6000);
-  }
-
-  function pauseMic() {
-    micOnRef.current = false;
-    stoppingRef.current = true;
-    if (segmentTimerRef.current !== null) {
-      window.clearTimeout(segmentTimerRef.current);
-      segmentTimerRef.current = null;
-    }
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
-    }
-    recorderRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    analyzerRef.current?.stop();
-    analyzerRef.current = null;
-    setMicOn(false);
-    setMetrics(null);
-    metricsRef.current = null;
-  }
-
-  function endSession() {
-    pauseMic();
-    setSessionActive(false);
-  }
-
-  const liveFlags = useMemo(
-    () => transcript.flatMap((l) => scamFlagsFromText(l.text)),
-    [transcript],
-  );
+  const {
+    micOn, starting, ending, micError, metrics, transcript, aiResult, finalVerdict, aiBusy,
+    transcribing, saving, saved, sessionActive, language, setLanguage,
+    saveTranscript, setSaveTranscript, startMic, pauseMic, endSession, runAiVerdict,
+  } = useLiveVoice();
+  const liveFlags = useMemo(() => transcript.flatMap(l => scamFlagsFromText(l.text)), [transcript]);
   const confidence = metrics?.voiced ? metrics.confidence : 0;
-  const rawLocalVerdict: Verdict = metrics?.voiced
-    ? confidence >= 88
-      ? "flagged"
-      : confidence >= 65
-        ? "suspicious"
-        : "safe"
-    : "safe";
-  const localVerdict = calibrateVerdict(
-    rawLocalVerdict,
-    liveFlags,
-    transcript,
-    metrics
-      ? {
-          confidence: metrics.confidence,
-          jitterPct: metrics.jitterPct,
-          flatness: metrics.flatness,
-          rolloff: metrics.rolloff,
-        }
-      : undefined,
-  );
-  const aiVerdict = aiResult && aiResult.ok ? aiResult.verdict : null;
-  const combinedVerdict: Verdict =
-    aiVerdict && VERDICT_RANK[aiVerdict] > VERDICT_RANK[localVerdict]
-      ? aiVerdict
-      : localVerdict;
-
-  /* Persist the session to the ledger once the mic stops AND the final
-   * transcription/AI verdict has settled — same pattern as the scripted
-   * demo call. Waiting on aiBusy/transcribing avoids saving a stale
-   * "safe" verdict a split second before the real one lands. */
-  useEffect(() => {
-    if (sessionActive || saved || saving) return;
-    if (transcript.length === 0) return;
-    if (transcribingRef.current || busyRef.current) return;
-    setSaving(true);
-    const verdict: Verdict = aiResult?.ok ? aiResult.verdict : "safe";
-    const durationSec = startedAtRef.current
-      ? Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
-      : 0;
-    void (async () => {
-      try {
-        await recordCall({
-          callerName: "Live mic check",
-          callerNumber: undefined,
-          channel: "unknown",
-          startedAt: startedAtRef.current || Date.now(),
-          durationSec,
-          verdict,
-          riskScore:
-            verdict === "flagged" ? 85 : verdict === "suspicious" ? 55 : 15,
-          voiceScore: metricsRef.current?.confidence,
-          behaviorScore: behaviorFromFlags(liveFlags),
-          flags: liveFlags,
-          transcript,
-          notifiedCircle: verdict === "flagged",
-        });
-        setSaved(true);
-        toast.success("Session archived to your ledger");
-      } catch (err) {
-        console.error("Failed to record mic session", err);
-        toast.error("Could not archive this session");
-      } finally {
-        setSaving(false);
-      }
-    })();
-  }, [micOn, saved, saving, transcript, aiResult, liveFlags, recordCall]);
+  const localVerdict = calibrateVerdict(confidence >= 88 ? "flagged" : confidence >= 65 ? "suspicious" : "safe", liveFlags, transcript, metrics ?? undefined);
+  const aiVerdict = aiResult?.ok ? aiResult.verdict : null;
+  const combinedVerdict = aiVerdict && VERDICT_RANK[aiVerdict] > VERDICT_RANK[localVerdict] ? aiVerdict : localVerdict;
 
   return (
     <ArchCard
@@ -963,6 +637,12 @@ function MicPanel() {
       }
     >
       <div className="flex flex-col items-center gap-6 p-6 sm:p-8">
+        <label className="flex items-center gap-3 text-sm">
+          <Switch checked={saveTranscript} onCheckedChange={setSaveTranscript} disabled={ending} aria-label="Archive the microphone transcript" />
+          Archive the transcript (optional)
+        </label>
+        {ending && <p role="status" className="text-sm text-muted-foreground">Finishing queued audio and saving your result…</p>}
+        {sessionActive && micError && <p role="alert" className="text-sm text-red-600">{micError}</p>}
         <div className="relative flex size-28 items-center justify-center">
           <span
             className={cn(
@@ -990,23 +670,17 @@ function MicPanel() {
 
         {!sessionActive ? (
           <div className="w-full text-center">
-            {transcript.length > 0 && (
+            {finalVerdict !== null && (
               <LastSessionSummary
+                verdict={finalVerdict ?? combinedVerdict}
                 transcript={transcript}
-                aiResult={aiResult}
                 flags={liveFlags}
                 saving={saving}
                 saved={saved}
-                onNew={() => {
-                  setTranscript([]);
-                  transcriptRef.current = [];
-                  setAiResult(null);
-                  setSaved(false);
-                }}
               />
             )}
             <h3 className="font-display text-lg font-semibold">
-              {micError ? "Microphone needed" : "Check a live call in real time"}
+              {micError ? "Check needs attention" : "Check a live call in real time"}
             </h3>
             <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
               {micError ??
@@ -1020,6 +694,7 @@ function MicPanel() {
                 </span>
                 <Select
                   value={language}
+                  disabled={starting || ending}
                   onValueChange={(v) => setLanguage(v as "auto" | "en" | "hi")}
                 >
                   <SelectTrigger className="h-9 w-[140px]">
@@ -1032,7 +707,7 @@ function MicPanel() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="button" className="gap-2" onClick={startMic}>
+              <Button type="button" className="gap-2" disabled={starting || ending} onClick={() => void startMic()}>
                 <Mic className="size-4" />
                 Start new session
               </Button>
@@ -1054,7 +729,7 @@ function MicPanel() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  Paused — hold mic button to resume
+                  Paused — resume when ready
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -1063,15 +738,13 @@ function MicPanel() {
                   variant={micOn ? "default" : "outline"} 
                   size="sm" 
                   className="gap-2 select-none"
-                  onPointerDown={startMic}
-                  onPointerUp={pauseMic}
-                  onPointerLeave={pauseMic}
-                  onPointerCancel={pauseMic}
+                  disabled={starting || ending}
+                  onClick={() => { if (micOn) void pauseMic(); else void startMic(); }}
                 >
                   {micOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
-                  Hold to listen
+                  {micOn ? "Pause" : "Resume"}
                 </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={endSession}>
+                <Button type="button" variant="destructive" size="sm" disabled={ending || starting} onClick={() => void endSession()}>
                   End Check
                 </Button>
               </div>
@@ -1183,7 +856,7 @@ function MicPanel() {
                   </span>
                 )}
                 {!aiBusy && aiResult?.ok && (
-                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => void runAiVerdict(true)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => void runAiVerdict()}>
                     <RefreshCw className="size-3" />
                     Refresh
                   </Button>
@@ -1244,21 +917,18 @@ function MicPanel() {
 }
 
 function LastSessionSummary({
+  verdict,
   transcript,
-  aiResult,
   flags,
   saving,
   saved,
-  onNew,
 }: {
+  verdict: "safe" | "suspicious" | "flagged";
   transcript: TranscriptLine[];
-  aiResult: AiVerdictResult | null;
   flags: ScamFlag[];
   saving: boolean;
   saved: boolean;
-  onNew: () => void;
 }) {
-  const verdict = aiResult?.ok ? aiResult.verdict : "safe";
   return (
     <div className="mx-auto mb-6 max-w-md space-y-3 rounded-2xl border border-border bg-card p-4 text-left">
       <div className="flex items-center justify-between">
@@ -1284,21 +954,8 @@ function LastSessionSummary({
           "Not archived yet"
         )}
       </p>
-      <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onNew}>
-        <RefreshCw className="size-3.5" />
-        Start a new check
-      </Button>
     </div>
   );
-}
-
-function pickRecorderMime(): string | undefined {
-  if (typeof MediaRecorder === "undefined") return undefined;
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-  for (const c of candidates) {
-    if (MediaRecorder.isTypeSupported(c)) return c;
-  }
-  return undefined;
 }
 
 /* ─────────────────────────── Groq AI verdict ─────────────────────────── */

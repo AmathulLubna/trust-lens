@@ -98,7 +98,13 @@ export class VoiceAnalyzer {
         autoGainControl: true,
       },
     });
-    this.attach(stream);
+    try {
+      this.attach(stream);
+    } catch (error) {
+      stream.getTracks().forEach(track => track.stop());
+      this.stop();
+      throw error;
+    }
     return stream;
   }
 
@@ -271,12 +277,12 @@ export class VoiceAnalyzer {
       }
       const meanPeriod = sum / periods.length;
       jitterPct = meanPeriod > 0 ? (absDiff / (periods.length - 1) / meanPeriod) * 100 : 0;
-      // Prosody flatness = coefficient of variation of pitch, normalised.
+      // Flatness is the inverse of normalized pitch variation.
       const mean = voicedPitches.reduce((a, b) => a + b, 0) / voicedPitches.length;
       const variance =
         voicedPitches.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / voicedPitches.length;
       const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-      flatness = Math.min(1, cv / 0.3);
+      flatness = 1 - Math.min(1, cv / 0.3);
     }
 
     analyser.getFloatFrequencyData(this.freq);

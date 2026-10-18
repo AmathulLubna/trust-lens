@@ -9,7 +9,7 @@ import { Link } from "react-router";
 /** Optional: set a public privacy contact address. Left empty, the page points to GitHub issues. */
 const CONTACT_EMAIL = "";
 const ISSUES_URL = "https://github.com/AmathulLubna/trust-lens/issues";
-const LAST_UPDATED = "8 October 2026";
+const LAST_UPDATED = "17 October 2026";
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -36,7 +36,8 @@ const PROCESSORS: [string, string, string][] = [
   ["Convex", "Backend, database and sign-in sessions", "Your account, ledger, circle, checks and settings"],
   ["Groq", "Speech-to-text (Whisper) and AI verdicts", "Short audio chunks, transcripts, messages and numbers you check"],
   ["Google (Gemini)", "AI second opinion on messages and numbers", "Message text and number signals you submit for a check"],
-  ["Resend", "Email delivery", "Your email address (sign-in codes); circle members' emails (alerts you enable)"],
+  ["Freebuff OTP service", "Sign-in email delivery", "Your email address and one-time sign-in code"],
+  ["Resend", "Circle alert delivery", "Circle members' emails; your display name, alert time and verdict"],
   ["Vercel", "Hosts the website", "Standard request data such as IP address and browser type"],
   ["Google Fonts", "Serves page fonts", "Your IP address and browser type when the page loads"],
 ];

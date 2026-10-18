@@ -1,5 +1,6 @@
 import { ArchCard, ScoreMeter, VerdictStamp } from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -73,6 +74,8 @@ export default function UploadCheck() {
   const [aiResult, setAiResult] = useState<AiVerdictResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveTranscript, setSaveTranscript] = useState(false);
+  const sessionId = useRef("");
   const [dragOver, setDragOver] = useState(false);
   // Whisper auto-detects language per request when this isn't pinned, which
   // means the SAME audio can come back transcribed in English one run and
@@ -95,6 +98,7 @@ export default function UploadCheck() {
   const busy = stage === "transcribing" || stage === "analyzing";
 
   function reset() {
+    if (busy || saving) return;
     setFile(null);
     setStage("idle");
     setError(null);
@@ -102,10 +106,11 @@ export default function UploadCheck() {
     setAiResult(null);
     setSaving(false);
     setSaved(false);
+    sessionId.current = crypto.randomUUID();
   }
 
   function pickFile(f: File | null) {
-    if (!f) return;
+    if (!f || busy || saving) return;
     if (
       !f.type.startsWith("audio/") &&
       !/\.(mp3|wav|m4a|webm|ogg|aac|flac)$/i.test(f.name)
@@ -121,6 +126,7 @@ export default function UploadCheck() {
     }
     setError(null);
     setFile(f);
+    sessionId.current = crypto.randomUUID();
     setStage("idle");
     setTranscript([]);
     setAiResult(null);
@@ -154,6 +160,7 @@ export default function UploadCheck() {
       setStage("analyzing");
       const fileFlags = lines.flatMap((l) => scamFlagsFromText(l.text));
       const verdictRes = (await runGroq({
+        sessionId: sessionId.current,
         transcript: lines.map((l) => ({ speaker: l.speaker, text: l.text })),
         flags: fileFlags.map((f) => ({ id: f.id, label: f.label, severity: f.severity })),
         channel: "unknown",
@@ -169,11 +176,13 @@ export default function UploadCheck() {
   }
 
   async function archive() {
-    if (!file || saving || saved) return;
+    if (!file || saving || saved || !aiResult?.ok) return;
     setSaving(true);
     const finalVerdict: Verdict = aiResult?.ok ? aiResult.verdict : "safe";
     try {
       await recordCall({
+        sessionId: sessionId.current,
+        archiveTranscript: saveTranscript,
         callerName: file.name,
         callerNumber: undefined,
         channel: "unknown",
@@ -183,8 +192,7 @@ export default function UploadCheck() {
         riskScore: finalVerdict === "flagged" ? 85 : finalVerdict === "suspicious" ? 55 : 15,
         behaviorScore: behaviorFromFlags(flags),
         flags,
-        transcript,
-        notifiedCircle: finalVerdict === "flagged",
+        transcript: saveTranscript ? transcript : undefined,
       });
       setSaved(true);
       toast.success("Recording archived to your ledger");
@@ -419,8 +427,12 @@ export default function UploadCheck() {
                     </div>
                   )}
 
-                  {stage === "done" && (
-                    <div className="flex items-center justify-between gap-2">
+                  {stage === "done" && aiResult?.ok && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex w-full items-center gap-2 text-xs">
+                        <Switch checked={saveTranscript} onCheckedChange={setSaveTranscript} disabled={saving || saved} aria-label="Archive the uploaded transcript" />
+                        Archive the transcript (optional)
+                      </label>
                       <span className="arch-label text-muted-foreground">
                         {saving
                           ? "Archiving…"
@@ -459,8 +471,8 @@ export default function UploadCheck() {
 
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
             The file is sent to Groq Whisper for transcription and is not
-            stored by Trust Lens beyond this session unless you save it to
-            your ledger.
+            stored by Trust Lens. Saving to your ledger stores the result;
+            the transcript is included only if you enable its archive option.
           </p>
         </div>
       </ArchCard>

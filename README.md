@@ -77,7 +77,7 @@ The verdict always follows the evidence shown — no random results, no contradi
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) ≥ 1.1 (the project is managed with Bun)
+- Node.js 24.15+ and npm (the checked-in npm lockfile is used by CI)
 - A free [Convex](https://convex.dev) account (or a self-hosted Convex backend — see below)
 - A free [Gemini](https://ai.google.dev) API key and/or [Groq](https://console.groq.com) API key (for transcription + AI verdicts)
 
@@ -86,13 +86,13 @@ The verdict always follows the evidence shown — no random results, no contradi
 ```bash
 git clone https://github.com/<your-username>/trust-lens.git
 cd trust-lens
-bun install
+npm ci
 ```
 
 ### 2. Set up Convex
 
 ```bash
-bunx convex dev
+npx convex dev
 ```
 
 - Log in when prompted and select/create a project.
@@ -114,20 +114,35 @@ cp .env.example .env.local
 | Variable | Required | Description |
 |---|---|---|
 | `VITE_CONVEX_URL` | ✅ | Your Convex deployment URL, e.g. `https://happy-otter-123.convex.cloud` |
-| `CONVEX_SITE_URL` | ✅ | `http://localhost:5173` in dev (your deployed origin in production) |
-| `CONVEX_DEPLOYMENT` | dev | Deployment slug used by `bunx convex dev` |
+| `CONVEX_SITE_URL` | ✅ | Backend HTTP action origin, e.g. `https://your-deployment.convex.site`; configure in the Convex environment |
+| `SITE_URL` | ✅ | Frontend origin, e.g. `http://localhost:5173`; configure in the Convex environment |
+| `CONVEX_DEPLOYMENT` | dev | Deployment slug used by `npx convex dev` |
 
-> Auth keys (`JWKS`, `JWT_PRIVATE_KEY`, `SITE_URL`) are auto-provisioned by
-> Convex Auth — leave them to the platform/Convex dashboard.
+> Keep signing keys (`JWKS`, `JWT_PRIVATE_KEY`) in the Convex environment.
+> Set `SITE_URL` to your frontend origin; it is separate from the backend's
+> `CONVEX_SITE_URL`.
 
 ### 4. Add the AI provider keys (backend env)
 
 The AI features read these from the **Convex environment**, not the frontend:
 
 ```bash
-bunx convex env set GEMINI_API_KEY AI...
-bunx convex env set GROQ_API_KEY gsk_...
+npx convex env set GEMINI_API_KEY AI...
+npx convex env set GROQ_API_KEY gsk_...
 ```
+
+Email sign-in requires `OTP_EMAIL_API_KEY` in the Convex environment for the
+Freebuff OTP delivery service. Obtain a new key from that provider; the old
+source-embedded key must be revoked and replaced. Anonymous sign-in does not
+require an email key. Circle emails require `RESEND_API_KEY` and
+`RESEND_FROM_EMAIL` (a sender on a verified Resend domain).
+
+Before deploying this revision, review existing records against `schema.ts`:
+schema validation is now enabled. New session IDs remain optional on historical
+call records. The new `circleAlerts` table and session indexes support one alert
+per session. Run `npx convex deploy` only after configuring the backend keys and
+resolving any existing schema-validation errors; do not delete historical data
+to bypass validation.
 
 Without these keys the app still works — heuristics, the knowledge base, and
 team reports score every number/message — but AI transcription and LLM
@@ -136,8 +151,8 @@ verdicts show a friendly "configure me" hint instead.
 ### 5. Run it
 
 ```bash
-bun run dev          # start the app (http://localhost:5173)
-bunx convex dev      # keep the backend running (separate terminal)
+npm run dev          # start the app (http://localhost:5173)
+npx convex dev      # keep the backend running (separate terminal)
 ```
 
 Open http://localhost:5173 → sign in (email OTP or anonymous) → try **Live Guard → Scenario call**, then check a number in **Number Check**.
@@ -146,13 +161,19 @@ Open http://localhost:5173 → sign in (email OTP or anonymous) → try **Live G
 
 | Command | What it does |
 |---|---|
-| `bun run dev` | Start the Vite dev server |
-| `bun run build` | Type-check + production build (`tsc -b && vite build`) |
-| `bun run preview` | Preview the production build |
-| `bun run lint` | ESLint across the project |
-| `bun run format` | Prettier formatting |
-| `bunx convex dev` | Run Convex backend + regenerate types |
-| `bunx convex deploy` | Deploy backend functions to production |
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Type-check + production build (`tsc -b && vite build`) |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | ESLint across the project |
+| `npm test` | Offline regression tests for privacy, alerts, scoring and audio queues |
+| `npm run format` | Prettier formatting |
+| `npx convex dev` | Run Convex backend + regenerate types |
+| `npx convex deploy` | Deploy backend functions to production |
+
+CI runs `npm ci`, lint, tests and the production build. Tests mock AI and email
+providers and do not send real messages. Live microphone sessions drain queued
+audio before their final verdict and archive. Transcript archiving defaults to
+off in both microphone and upload checks; the backend also enforces this choice.
 
 ---
 
@@ -186,7 +207,7 @@ src/
 - `.env.local` holds your Convex deployment URL — fine for local dev, but
   never commit it. It's already in `.gitignore`.
 - Real API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`) live only in the Convex
-  environment (`bunx convex env set …`), never in the repo or the client
+  environment (`npx convex env set …`), never in the repo or the client
   bundle.
 - Double-check for any personal recovery codes, credentials, or other
   one-off files sitting in the project root before your first commit —

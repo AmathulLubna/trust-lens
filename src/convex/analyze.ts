@@ -27,6 +27,7 @@ const VERDICTS = ["safe", "suspicious", "flagged"] as const;
  *  throwing when the API key is missing so the UI can guide setup. */
 export const groqVerdict = action({
   args: {
+    sessionId: v.optional(v.string()),
     voiceMetrics: v.optional(
       v.object({
         pitchHz: v.optional(v.number()),
@@ -146,7 +147,7 @@ Rules:
           max_tokens: 500,
           response_format: { type: "json_object" },
         },
-        { headers: { Authorization: `Bearer ${apiKey}` } },
+        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 20_000 },
       );
       content = data?.choices?.[0]?.message?.content ?? "";
     } catch (err) {
@@ -199,18 +200,11 @@ Rules:
 
       // Fire-and-forget circle alert on a flagged call. Wrapped so a
       // Resend hiccup never breaks the verdict the user already sees.
-      if (verdict === "flagged") {
+      if (verdict === "flagged" && args.sessionId) {
         try {
-          const userName = await ctx.runQuery(internal.circle.getUserName, {
+          await ctx.runMutation(internal.alertQueue.request, {
             userId,
-          });
-          await ctx.scheduler.runAfter(0, internal.alerts.notifyCircleOnFlag, {
-            userId,
-            userName: userName ?? undefined,
-            verdict,
-            confidence,
-            summary,
-            markers,
+            sessionId: args.sessionId,
           });
         } catch (err) {
           console.warn(
@@ -311,6 +305,7 @@ export const groqTranscribe = action({
         headers: { Authorization: `Bearer ${apiKey}` },
         maxBodyLength: 35_000_000,
         maxContentLength: 35_000_000,
+        timeout: 30_000,
       });
       const text = String(data?.text ?? "").trim();
       return text ? { ok: true, text } : { ok: false, message: "No speech detected." };
