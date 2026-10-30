@@ -1,5 +1,8 @@
 # TrustLens model on the operator's laptop
 
+Latest work log and end-of-session restart instructions:
+[30 October 2026 — latest setup](SESSION_2026-10-30.md).
+
 **On branch `LCU`, the integration is already applied.** Follow the project-root
 [README](../README.md) for the current run commands and key configuration.
 The patch instructions below are for reusing this layer on an older checkout.
