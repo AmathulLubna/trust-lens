@@ -38,8 +38,10 @@ export const notifyCircleOnFlag = internalAction({
           {
             from,
             to: email,
-            subject: "Trust Lens: a call needs verification",
-            text: `${delivery.who} had a call flagged at ${new Date(delivery.when).toISOString()}. Please contact them separately to check in. This is a warning aid, not proof of fraud.`,
+            subject: delivery.localVoice ? "Trust Lens: a voice check needs verification" : "Trust Lens: a call needs verification",
+            text: delivery.localVoice
+              ? `${delivery.who} requested a circle alert after an experimental voice check returned an AI-like vote at ${new Date(delivery.when).toISOString()}. The assessment is inconclusive; this does not prove the recording is AI-generated or fraudulent. Please contact them separately to verify.`
+              : `${delivery.who} had a call flagged at ${new Date(delivery.when).toISOString()}. Please contact them separately to check in. This is a warning aid, not proof of fraud.`,
           },
           {
             headers: {

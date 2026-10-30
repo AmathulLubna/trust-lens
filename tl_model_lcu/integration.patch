@@ -1,0 +1,261 @@
+--- a/src/components/dashboard/LocalVoiceCheck.tsx
++++ b/src/components/dashboard/LocalVoiceCheck.tsx
+@@ -24,11 +24,15 @@
+   embedded = false,
+   ledgerEnabled = false,
+   live = false,
++  transport,
+ }: {
+   embedded?: boolean;
+   ledgerEnabled?: boolean;
+   live?: boolean;
++  transport?: LocalVoiceClient;
+ }) {
++  const hosted = Boolean(transport);
++  const maxAudioBytes = (hosted ? 3 : 20) * 1024 * 1024;
+   const [key, setKey] = useState("");
+   const [health, setHealth] = useState<VoiceHealth | null>(null);
+   const [connected, setConnected] = useState(false);
+@@ -43,7 +47,7 @@
+   const [micPending, setMicPending] = useState(false);
+   const [seconds, setSeconds] = useState(0);
+   const [copied, setCopied] = useState(false);
+-  const client = useRef(new LocalVoiceClient());
++  const client = useRef(transport ?? new LocalVoiceClient());
+   const liveVoice = useLocalLiveVoice(() => client.current, model);
+   const liveLocked = liveVoice.active || liveVoice.starting || liveVoice.busy;
+   const active = useRef<{ controller: AbortController; id?: string } | null>(
+@@ -97,17 +101,16 @@
+     setCopied(false);
+     try {
+       let pairingKey = key.trim();
+-      const probe = new LocalVoiceClient();
+-      if (isLocalCompanion()) pairingKey = (await probe.pairing()).key;
+-      if (!pairingKey)
+-        throw new Error(
+-          "Run Start-VoiceSentinel.cmd, open http://127.0.0.1:8765/pair, and copy its pairing key into this field.",
+-        );
+-      const next = new LocalVoiceClient(pairingKey);
++      if (!transport) {
++        const probe = new LocalVoiceClient();
++        if (isLocalCompanion()) pairingKey = (await probe.pairing()).key;
++        if (!pairingKey) throw new Error("Run Start-VoiceSentinel.cmd and connect the local companion.");
++      }
++      const next = transport ?? new LocalVoiceClient(pairingKey);
+       const status = await next.health();
+       if (status.service !== "trustlens-local-voice")
+-        throw new Error("A different service is using port 8765.");
+-      // Verify the key without starting inference.
++        throw new Error("The voice detector returned an unexpected service identity.");
++      // Verify access without starting inference.
+       await next.request("/session");
+       if (mounted.current) {
+         client.current = next;
+@@ -131,9 +134,9 @@
+     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+     previewUrl.current = "";
+     setPreview("");
+-    if (next && next.size > 20 * 1024 * 1024) {
++    if (next && next.size > maxAudioBytes) {
+       setFile(null);
+-      setError("Choose audio no larger than 20 MB.");
++      setError(`Choose audio no larger than ${hosted ? "3 MiB" : "20 MB"}.`);
+       return;
+     }
+     previewUrl.current = next ? URL.createObjectURL(next) : "";
+@@ -232,7 +235,7 @@
+           size += event.data.size;
+           chunks.push(event.data);
+         }
+-        if (size >= 20 * 1024 * 1024 && rec.state === "recording") rec.stop();
++        if (size >= maxAudioBytes && rec.state === "recording") rec.stop();
+       };
+       rec.onerror = () => {
+         recordingFailed = true;
+@@ -292,16 +295,18 @@
+     <section className="space-y-6" aria-labelledby="voice-title">
+       <div className="space-y-2">
+         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+-          VoiceSentinel · Local demo
++          {hosted ? "VoiceSentinel · Shared detector" : "VoiceSentinel · Local demo"}
+         </p>
+         <h2
+           id="voice-title"
+           className="font-display text-3xl font-semibold tracking-tight"
+         >
+-          {live ? "Live voice · local model" : embedded ? "Human or AI voice" : "Check a voice recording"}
++          {live ? (hosted ? "Live voice · shared model" : "Live voice · local model") : embedded ? "Human or AI voice" : "Check a voice recording"}
+         </h2>
+         <p className="max-w-2xl text-sm text-muted-foreground">
+-          {live
++          {hosted
++            ? "Your audio is sent through TrustLens to the operator's laptop for voice detection. No model installation or pairing key is needed. This experimental check does not transcribe or assess scam language."
++            : live
+             ? "Place the call on speaker near your microphone. VoiceSentinel checks six-second speech samples on this computer. This mode checks voice characteristics; it does not transcribe or check the words for scams."
+             : "Upload a voice note or record your microphone. The trained detector runs on this computer, with no paid API or cloud audio upload."}
+         </p>
+@@ -311,15 +316,15 @@
+           <div className="flex items-center gap-3">
+             <Plug className="size-5 text-primary" />
+             <div>
+-              <h2 className="font-semibold">Local detector</h2>
++              <h2 className="font-semibold">{hosted ? "Shared detector" : "Local detector"}</h2>
+               <p role="status" className="text-sm text-muted-foreground">
+                 {connected
+                   ? health?.state === "ready"
+-                    ? "Connected · ready on your laptop"
++                    ? (hosted ? "Connected · shared detector ready" : "Connected · ready on your laptop")
+                     : health?.state === "error"
+                       ? health.error
+                       : "Connected · loading the model (first start can take a few minutes)"
+-                  : "Run Start-VoiceSentinel.cmd on port 8765, then connect."}
++                  : (hosted ? "Connect to the shared detector. Availability depends on the operator’s laptop." : "Run Start-VoiceSentinel.cmd on port 8765, then connect.")}
+               </p>
+             </div>
+           </div>
+@@ -330,10 +335,10 @@
+             {connecting ? (
+               <Loader2 className="mr-2 size-4 animate-spin" />
+             ) : null}
+-            {connected ? "Reconnect" : "Connect local detector"}
++            {connected ? "Reconnect" : hosted ? "Connect detector" : "Connect local detector"}
+           </Button>
+         </div>
+-        {!isLocalCompanion() && (
++        {!hosted && !isLocalCompanion() && (
+           <div className="space-y-2">
+             <label htmlFor="pairing-key" className="text-sm font-medium">
+               Pairing key from your laptop
+@@ -365,7 +370,7 @@
+             </p>
+           </div>
+         )}
+-        {isLocalCompanion() && connected && (
++        {!hosted && isLocalCompanion() && connected && (
+           <Button
+             variant="outline"
+             size="sm"
+@@ -429,17 +434,17 @@
+               onClick={() => liveVoice.active || liveVoice.starting ? liveVoice.stop() : void liveVoice.start()}
+             >
+               {liveVoice.active || liveVoice.starting ? <Square className="mr-2 size-4" /> : <Mic className="mr-2 size-4" />}
+-              {liveVoice.active || liveVoice.starting ? "Stop local check" : "Start local check"}
++              {liveVoice.active || liveVoice.starting ? (hosted ? "Stop voice check" : "Stop local check") : (hosted ? "Start voice check" : "Start local check")}
+             </Button>
+             <p role="status" className="text-sm text-muted-foreground">
+               {liveVoice.starting ? "Waiting for microphone…" : liveVoice.active
+                 ? liveVoice.speech ? "Listening · speech detected" : "Listening · waiting for clear speech"
+                 : liveVoice.busy ? "Microphone stopped · finishing captured speech…" : "Microphone off"}
+-              {liveVoice.active && liveVoice.busy ? " · analyzing locally" : ""}
++              {liveVoice.active && liveVoice.busy ? (hosted ? " · analyzing on shared detector" : " · analyzing locally") : ""}
+             </p>
+             <p className="text-xs text-muted-foreground">
+-              Silent samples are skipped. Results update as your laptop finishes each check.
+-              On slower laptops, the newest waiting sample replaces older waiting samples.
++              Silent samples are skipped. Results update as the detector finishes each check.
++              The newest waiting sample replaces older waiting samples while analysis is busy.
+               Stop the check to review and save the latest completed result.
+             </p>
+           </div>
+@@ -448,7 +453,7 @@
+           <Upload className="mx-auto mb-3 size-7 text-muted-foreground" />
+           <span className="block font-medium">Choose an audio file</span>
+           <span className="mt-1 block text-xs text-muted-foreground">
+-            MP3, WAV, M4A, WebM, OGG, AAC or FLAC · 1–120 seconds · up to 20 MB
++            MP3, WAV, M4A, WebM, OGG, AAC or FLAC · 1–120 seconds · up to {hosted ? "3 MiB" : "20 MB"}
+           </span>
+           <input
+             aria-label="Choose audio file"
+@@ -588,7 +593,7 @@
+         </div>
+       )}
+       <p className="text-xs leading-relaxed text-muted-foreground">
+-        Audio is processed on this computer. Temporary decoding files are
++        {hosted ? "Audio passes through Convex and is processed on the operator's laptop. This feature does not save raw audio to the ledger." : "Audio is processed on this computer."} Temporary decoding files are
+         deleted after decoding; results and derived features expire from memory
+         after about 15 minutes. Results are added to cloud history only when you
+         choose Add to ledger. Circle alerts require the separate alert option.
+--- a/src/components/dashboard/UploadCheck.tsx
++++ b/src/components/dashboard/UploadCheck.tsx
+@@ -36,6 +36,7 @@
+ import { toast } from "sonner";
+ import { useSearchParams } from "react-router";
+ import LocalVoiceCheck from "@/components/dashboard/LocalVoiceCheck";
++import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ 
+ export default function UploadCheck({
+@@ -68,10 +69,10 @@
+       >
+         <TabsList className="mb-5 h-auto flex-wrap">
+           <TabsTrigger value="scam">Transcript &amp; scam check</TabsTrigger>
+-          <TabsTrigger value="voice">Local voice model (optional)</TabsTrigger>
++          <TabsTrigger value="voice">{localOnly ? "Local voice model (optional)" : "Human or AI voice"}</TabsTrigger>
+         </TabsList>
+         <TabsContent value="voice">
+-          <LocalVoiceCheck embedded ledgerEnabled={!localOnly} />
++          {localOnly ? <LocalVoiceCheck embedded /> : <HostedVoiceCheck embedded ledgerEnabled />}
+         </TabsContent>
+         <TabsContent value="scam">
+           {localOnly ? (
+--- a/src/components/dashboard/LiveGuard.tsx
++++ b/src/components/dashboard/LiveGuard.tsx
+@@ -11,7 +11,7 @@
+ import { api } from "@/convex/_generated/api";
+ import { type VoiceMetrics } from "@/lib/voice-analysis";
+ import { useLiveVoice } from "@/hooks/use-live-voice";
+-import LocalVoiceCheck from "./LocalVoiceCheck";
++import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
+ import { VERDICT_RANK } from "@/lib/numbers";
+ import {
+   behaviorFromFlags,
+@@ -155,7 +155,7 @@
+     <div className="space-y-6">
+       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+         <div>
+-          <p className="arch-label text-primary">Live guard · {engine === "local" && mode === "mic" ? "local model" : "hosted analysis"}</p>
++          <p className="arch-label text-primary">Live guard · {engine === "local" && mode === "mic" ? "shared model" : "hosted analysis"}</p>
+           <h2 className="mt-1 font-display text-2xl font-bold tracking-tight">
+             Check a live voice call
+           </h2>
+@@ -192,9 +192,9 @@
+           <select id="live-engine" value={engine} onChange={event => setEngine(event.target.value as "cloud" | "local")}
+             className="rounded-lg border border-input bg-background p-2 text-sm">
+             <option value="cloud">Cloud · transcript & scam check</option>
+-            <option value="local">Local · VoiceSentinel AI voice check</option>
++            <option value="local">VoiceSentinel · shared AI voice check</option>
+           </select>
+-          <p className="text-xs text-muted-foreground">Cloud works without a local model. Local uses your paired laptop detector. Switching modes stops the current check.</p>
++          <p className="text-xs text-muted-foreground">VoiceSentinel sends speech samples to the operator’s shared detector without a pairing key. Cloud checks transcripts for scam patterns. Switching modes stops the current check.</p>
+         </div>
+       )}
+       {mode === "scenario" && archiveFailed && (
+@@ -233,7 +233,7 @@
+           saving={saving}
+         />
+       ) : engine === "local" ? (
+-        <LocalVoiceCheck embedded ledgerEnabled live />
++        <HostedVoiceCheck embedded ledgerEnabled live />
+       ) : (
+         <MicPanel />
+       )}
+--- a/src/components/dashboard/LocalVoiceLedgerActions.tsx
++++ b/src/components/dashboard/LocalVoiceLedgerActions.tsx
+@@ -71,7 +71,7 @@
+       )}
+       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+       <p className="text-xs leading-relaxed text-muted-foreground">
+-        Only the result and model details are saved; your audio and pairing key stay on this laptop.
++        Only the result and model details are saved to the ledger; raw audio is not included.
+         {aiLike ? " The circle option emails enabled contacts only when you choose it." : " Circle alerts are available for AI-like votes."}
+       </p>
+     </div>
+diff --git a/src/convex/laptopModel.ts b/src/convex/laptopModel.ts
+new file mode 100644
+--- /dev/null
++++ b/src/convex/laptopModel.ts
+@@ -0,0 +1,4 @@
++"use node";
++
++// Implementation lives in the integration folder; do not duplicate it here.
++export { request } from "../../tl_model_lcu/convex/model";

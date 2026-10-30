@@ -16,12 +16,14 @@ import type * as auth_emailOtp from "../auth/emailOtp.js";
 import type * as calls from "../calls.js";
 import type * as circle from "../circle.js";
 import type * as http from "../http.js";
+import type * as laptopModel from "../laptopModel.js";
 import type * as messageCheck from "../messageCheck.js";
 import type * as messages from "../messages.js";
 import type * as numberLookup from "../numberLookup.js";
 import type * as numbers from "../numbers.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
+import type * as voiceResult from "../voiceResult.js";
 
 import type {
   ApiFromModules,
@@ -38,12 +40,14 @@ declare const fullApi: ApiFromModules<{
   calls: typeof calls;
   circle: typeof circle;
   http: typeof http;
+  laptopModel: typeof laptopModel;
   messageCheck: typeof messageCheck;
   messages: typeof messages;
   numberLookup: typeof numberLookup;
   numbers: typeof numbers;
   settings: typeof settings;
   users: typeof users;
+  voiceResult: typeof voiceResult;
 }>;
 
 /**

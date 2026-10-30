@@ -20,8 +20,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 type Tab =
   | "overview"
@@ -45,7 +44,6 @@ const NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
 ];
 
 export default function Dashboard() {
-  const [tab, setTab] = useState<Tab>("overview");
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -57,6 +55,42 @@ export default function Dashboard() {
       navigate("/");
     }
   };
+
+  return <DashboardView user={user} onExit={() => void handleSignOut()} />;
+}
+
+export function LocalDashboard() {
+  const navigate = useNavigate();
+  return (
+    <DashboardView
+      localOnly
+      user={{ name: "Offline preview", email: "Convex connection not configured" }}
+      onExit={() => navigate("/")}
+    />
+  );
+}
+
+function DashboardView({
+  localOnly = false,
+  user,
+  onExit,
+}: {
+  localOnly?: boolean;
+  user?: { name?: string | null; email?: string | null } | null;
+  onExit: () => void;
+}) {
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("tab");
+  const tab: Tab =
+    NAV.find((item) => item.id === selected)?.id ??
+    (localOnly ? "upload" : "overview");
+  const setTab = (next: Tab) =>
+    setParams((previous) => {
+      const updated = new URLSearchParams(previous);
+      updated.set("tab", next);
+      return updated;
+    });
+  const currentTitle = NAV.find((item) => item.id === tab)!.label;
 
   return (
     <div className="paper min-h-screen">
@@ -107,10 +141,10 @@ export default function Dashboard() {
               </div>
               <button
                 type="button"
-                onClick={handleSignOut}
+                onClick={onExit}
                 className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-destructive"
-                aria-label="Sign out"
-                title="Sign out"
+                aria-label={localOnly ? "Back to home" : "Sign out"}
+                title={localOnly ? "Back to home" : "Sign out"}
               >
                 <LogOut className="size-4" />
               </button>
@@ -130,17 +164,52 @@ export default function Dashboard() {
             </div>
             <button
               type="button"
-              onClick={handleSignOut}
+              onClick={onExit}
               className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
             >
               <LogOut className="size-3.5" />
-              Sign out
+              {localOnly ? "Home" : "Sign out"}
             </button>
           </header>
 
           <main className="flex-1 px-4 pb-40 pt-6 sm:px-6 md:pb-12 md:pt-8">
             <div className="mx-auto max-w-5xl">
-              {tab === "overview" && (
+              {localOnly && (
+                <p className="mb-5 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+                  Convex is not connected. Hosted live voice and transcript checks
+                  need a backend connection. The local voice model is optional.
+                </p>
+              )}
+              {localOnly && tab !== "upload" && (
+                <section className="rounded-2xl border border-border bg-card p-6 space-y-4">
+                  <h1 className="font-display text-2xl font-semibold">
+                    {currentTitle}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    {tab === "overview"
+                      ? "Connect your Convex backend to use live voice and hosted checks. Upload Check also includes an optional local voice model."
+                      : `${currentTitle} uses your TrustLens account and the existing cloud backend, which is not configured in this local preview.`}
+                  </p>
+                  <div className="flex flex-wrap gap-4 text-sm font-medium">
+                    <button
+                      type="button"
+                      className="text-primary underline"
+                      onClick={() => setTab("upload")}
+                    >
+                      Go to Upload Check
+                    </button>
+                    <a
+                      className="text-primary underline"
+                      href={`https://trustlens-vmeg.vercel.app/dashboard?tab=${tab}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open {currentTitle} on hosted TrustLens
+                    </a>
+                  </div>
+                </section>
+              )}
+              {!localOnly && tab === "overview" && (
                 <Overview
                   onNavigate={(t) =>
                     setTab(
@@ -155,13 +224,13 @@ export default function Dashboard() {
                   }
                 />
               )}
-              {tab === "guard" && <LiveGuard />}
-              {tab === "upload" && <UploadCheck />}
-              {tab === "number" && <NumberCheck />}
-              {tab === "message" && <MessageCheck />}
-              {tab === "history" && <History />}
-              {tab === "circle" && <Circle />}
-              {tab === "settings" && <Settings />}
+              {!localOnly && tab === "guard" && <LiveGuard />}
+              {tab === "upload" && <UploadCheck localOnly={localOnly} />}
+              {!localOnly && tab === "number" && <NumberCheck />}
+              {!localOnly && tab === "message" && <MessageCheck />}
+              {!localOnly && tab === "history" && <History />}
+              {!localOnly && tab === "circle" && <Circle />}
+              {!localOnly && tab === "settings" && <Settings />}
             </div>
           </main>
         </div>

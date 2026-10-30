@@ -7,7 +7,7 @@ export function scoreForVerdict(score: number, verdict: Verdict): number {
 }
 export type FlagKind = "voice" | "behavior" | "contact";
 export type Severity = "info" | "warning" | "critical";
-export type Channel = "phone" | "unknown";
+export type Channel = "phone" | "unknown" | "whatsapp";
 
 export interface ScamFlag {
   id: string;

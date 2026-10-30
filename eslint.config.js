@@ -5,7 +5,17 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default tseslint.config(
-  { ignores: ["dist", "src/convex/_generated/**", "vly-toolbar-readonly.tsx"] },
+  {
+    ignores: [
+      "dist",
+      ".local/**",
+      ".venv-audio/**",
+      "ml/voice_sentinel/downloads/**",
+      "ml/voice_sentinel/VoiceSentinel_Model/**",
+      "src/convex/_generated/**",
+      "vly-toolbar-readonly.tsx",
+    ],
+  },
   {
     extends: [
       js.configs.recommended,

@@ -1,7 +1,18 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
 .env.local
 .convex/
 .vscode/
 *.log
+
+# Local audio datasets, review metadata and Python environment
+.local/
+.venv-audio/
+__pycache__/
+
+# Browser verification artifacts
+output/playwright/
+.playwright-cli/

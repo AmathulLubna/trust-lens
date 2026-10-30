@@ -11,6 +11,7 @@ import { ArchCard, ScoreMeter, VerdictStamp } from "@/components/dashboard/share
 import { api } from "@/convex/_generated/api";
 import { type VoiceMetrics } from "@/lib/voice-analysis";
 import { useLiveVoice } from "@/hooks/use-live-voice";
+import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
 import { VERDICT_RANK } from "@/lib/numbers";
 import {
   behaviorFromFlags,
@@ -55,7 +56,8 @@ const CALLER = { name: "Amma (Mother)", number: "+91 98••••••21" };
 const BAR_HEIGHTS = [0.35, 0.7, 0.5, 0.9, 0.4, 0.75, 0.3, 0.85, 0.6, 0.45, 0.8, 0.55, 0.95, 0.42, 0.68, 0.5, 0.88, 0.36, 0.72, 0.58];
 
 export default function LiveGuard() {
-  const [mode, setMode] = useState<Mode>("scenario");
+  const [mode, setMode] = useState<Mode>("mic");
+  const [engine, setEngine] = useState<"cloud" | "local">("cloud");
   const [phase, setPhase] = useState<Phase>("setup");
   const [saveTranscript, setSaveTranscript] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -153,9 +155,9 @@ export default function LiveGuard() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="arch-label text-primary">Live guard · test bench</p>
+          <p className="arch-label text-primary">Live guard · {engine === "local" && mode === "mic" ? "shared model" : "hosted analysis"}</p>
           <h2 className="mt-1 font-display text-2xl font-bold tracking-tight">
-            Test the pipeline with a sample call
+            Check a live voice call
           </h2>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
@@ -184,6 +186,17 @@ export default function LiveGuard() {
         </div>
       </div>
 
+      {mode === "mic" && (
+        <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+          <label htmlFor="live-engine" className="mr-3 text-sm font-medium">Live check mode</label>
+          <select id="live-engine" value={engine} onChange={event => setEngine(event.target.value as "cloud" | "local")}
+            className="rounded-lg border border-input bg-background p-2 text-sm">
+            <option value="cloud">Cloud · transcript & scam check</option>
+            <option value="local">VoiceSentinel · shared AI voice check</option>
+          </select>
+          <p className="text-xs text-muted-foreground">VoiceSentinel sends speech samples to the operator’s shared detector without a pairing key. Cloud checks transcripts for scam patterns. Switching modes stops the current check.</p>
+        </div>
+      )}
       {mode === "scenario" && archiveFailed && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
           <p className="text-sm">The call result could not be saved. Retry to archive this same call.</p>
@@ -219,6 +232,8 @@ export default function LiveGuard() {
           notified={notified}
           saving={saving}
         />
+      ) : engine === "local" ? (
+        <HostedVoiceCheck embedded ledgerEnabled live />
       ) : (
         <MicPanel />
       )}
@@ -623,7 +638,7 @@ function MicPanel() {
     <ArchCard
       label={
         micOn
-          ? "Live voice check · dual engine (on-device + Groq)"
+          ? "Live voice check · browser audio + hosted Groq"
           : "Live voice check · your microphone"
       }
       className="mx-auto max-w-4xl"
@@ -684,7 +699,7 @@ function MicPanel() {
             </h3>
             <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
               {micError ??
-                "Put the call on speaker and hold the phone near this mic (or speak directly into it). On-device acoustics score the voice in real time while Groq Whisper transcribes full sentences every few seconds — the scam-pattern agent reads the words as they're said, and the AI verdict updates automatically."}
+                "No local model or Python server is needed. Put the call on speaker near this microphone, or speak directly into it. Groq transcribes audio every few seconds through your Convex backend and checks the conversation for scam patterns. Browser audio measurements provide supporting signals, not proof that a voice is human or AI."}
             </p>
             {micError && <p className="mt-2 text-xs text-rose-600">{micError}</p>}
             <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
@@ -709,7 +724,7 @@ function MicPanel() {
               </div>
               <Button type="button" className="gap-2" disabled={starting || ending} onClick={() => void startMic()}>
                 <Mic className="size-4" />
-                Start new session
+                {starting ? "Connecting…" : "Start new session"}
               </Button>
             </div>
           </div>
@@ -773,7 +788,13 @@ function MicPanel() {
                 />
                 <div className="flex items-center gap-2">
                   <span className="arch-label text-muted-foreground">Combined</span>
-                  <VerdictStamp verdict={combinedVerdict} />
+                  {transcript.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Awaiting speech</span>
+                  ) : aiResult?.ok || finalVerdict ? (
+                    <VerdictStamp verdict={combinedVerdict} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Analysis pending</span>
+                  )}
                 </div>
               </div>
               {!metrics?.voiced && (
@@ -905,9 +926,10 @@ function MicPanel() {
             </div>
 
             <p className="text-center text-xs leading-relaxed text-muted-foreground">
-              Dual engine: acoustics run on-device; audio chunks are sent to
-              Groq Whisper for transcription and never stored. A hosted LLM
-              cross-checks features and content in real time.
+              No local model required. Browser audio measurements support the
+              hosted transcript and scam check. Audio chunks are sent through
+              Convex to Groq; Trust Lens does not save the recording. Transcript
+              archiving is optional. Acoustic scores cannot verify voice authenticity.
             </p>
           </div>
         )}

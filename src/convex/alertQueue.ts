@@ -12,6 +12,7 @@ export async function queueCircleAlert(
   ctx: MutationCtx,
   userId: Id<"users">,
   sessionId: string,
+  options: { manual?: boolean } = {},
 ) {
   if (!sessionId || sessionId.length > 128)
     throw new Error("Invalid session ID");
@@ -19,25 +20,27 @@ export async function queueCircleAlert(
     .query("userSettings")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .first();
-  if (settings?.autoNotifyCircle === false) return;
+  if (!options.manual && settings?.autoNotifyCircle === false) return;
   const existing = await ctx.db
     .query("circleAlerts")
     .withIndex("by_user_session", (q) =>
       q.eq("userId", userId).eq("sessionId", sessionId),
     )
     .first();
-  if (existing) return;
+  if (existing && (!options.manual || existing.status === "queued" || existing.status === "sent")) return;
   const members = await ctx.db
     .query("trustedCircle")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
   if (!members.some((m) => m.notifyOnFlag && m.email?.trim())) return;
-  const alertId = await ctx.db.insert("circleAlerts", {
+  const alertId = existing?._id ?? await ctx.db.insert("circleAlerts", {
     userId,
     sessionId,
     createdAt: Date.now(),
     status: "queued",
+    manual: options.manual,
   });
+  if (existing) await ctx.db.patch(existing._id, { status: "queued", manual: true, createdAt: Date.now() });
   await ctx.scheduler.runAfter(0, internal.alerts.notifyCircleOnFlag, {
     alertId,
   });
@@ -58,15 +61,18 @@ export const delivery = internalQuery({
       .query("userSettings")
       .withIndex("by_user", (q) => q.eq("userId", alert.userId))
       .first();
-    if (settings?.autoNotifyCircle === false) return null;
+    if (!alert.manual && settings?.autoNotifyCircle === false) return null;
     const members = await ctx.db
       .query("trustedCircle")
       .withIndex("by_user", (q) => q.eq("userId", alert.userId))
       .collect();
     const user = await ctx.db.get(alert.userId);
+    const log = await ctx.db.query("callLogs")
+      .withIndex("by_user_session", q => q.eq("userId", alert.userId).eq("sessionId", alert.sessionId)).first();
     return {
       who: user?.name ?? user?.email ?? "Someone in your circle",
       when: alert.createdAt,
+      ...(log?.localVoice ? { localVoice: true } : {}),
       emails: [
         ...new Set(
           members

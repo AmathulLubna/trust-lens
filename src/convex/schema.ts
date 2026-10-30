@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { Infer, v } from "convex/values";
+import { localVoiceRecord } from "./voiceResult";
 
 // default user roles. can add / remove based on the project as needed
 export const ROLES = {
@@ -41,6 +42,7 @@ const schema = defineSchema(
       channel: v.union(
         v.literal("phone"),
         v.literal("unknown"),
+        v.literal("whatsapp"), // retained for existing call ledger entries
       ),
       startedAt: v.number(),
       endedAt: v.optional(v.number()),
@@ -79,6 +81,8 @@ const schema = defineSchema(
         ),
       ),
       notifiedCircle: v.optional(v.boolean()),
+      localVoice: v.optional(localVoiceRecord),
+      circleAlertRequested: v.optional(v.boolean()),
     })
       .index("by_user", ["userId"])
       .index("by_user_session", ["userId", "sessionId"])
@@ -89,6 +93,7 @@ const schema = defineSchema(
       sessionId: v.string(),
       createdAt: v.number(),
       status: v.union(v.literal("queued"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
+      manual: v.optional(v.boolean()),
     }).index("by_user_session", ["userId", "sessionId"]),
 
     // TrustLens — family safety net
@@ -106,6 +111,13 @@ const schema = defineSchema(
     userSettings: defineTable({
       userId: v.id("users"),
       autoNotifyCircle: v.boolean(),
+      // Keep settings saved by earlier TrustLens versions valid on upgrade.
+      bannerAlert: v.optional(v.boolean()),
+      channelPhone: v.optional(v.boolean()),
+      channelWhatsapp: v.optional(v.boolean()),
+      fullscreenAlert: v.optional(v.boolean()),
+      sensitivity: v.optional(v.number()),
+      vibrationAlert: v.optional(v.boolean()),
     }).index("by_user", ["userId"]),
 
     // TrustLens — community number reports (shared spam/fraud knowledge base)

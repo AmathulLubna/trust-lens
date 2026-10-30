@@ -1,0 +1,7 @@
+# Install into the existing VoiceSentinel Python environment.
+fastapi==0.135.1
+starlette==1.9.0
+uvicorn>=0.34,<1
+imageio-ffmpeg==0.6.0
+# HTTP client used by the local launcher and integration tests.
+httpx==0.28.1

@@ -12,10 +12,13 @@ const mocks = vi.hoisted(() => ({
   transcribe: vi.fn(),
   verdict: vi.fn(),
   record: vi.fn(),
+  status: vi.fn(),
 }));
 vi.mock("convex/react", () => ({
   useAction: (fn: Parameters<typeof getFunctionName>[0]) =>
-    getFunctionName(fn).endsWith("groqTranscribe")
+    getFunctionName(fn).endsWith("voiceStatus")
+      ? mocks.status
+      : getFunctionName(fn).endsWith("groqTranscribe")
       ? mocks.transcribe
       : mocks.verdict,
   useMutation: () => mocks.record,
@@ -54,6 +57,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("MediaRecorder", Recorder);
   vi.stubGlobal("Blob", NodeBlob);
+  vi.stubGlobal("isSecureContext", true);
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: { getUserMedia: vi.fn() },
+  });
+  mocks.status.mockResolvedValue({ ready: true });
   mocks.start.mockResolvedValue({});
   mocks.analyze.mockReturnValue({
     voiced: true,
@@ -84,7 +93,7 @@ afterEach(() => {
 it("does not spend AI quota before speech arrives or while the transcript is unchanged", async () => {
   const { result } = renderHook(() => useLiveVoice());
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5_000);
@@ -100,6 +109,32 @@ it("does not spend AI quota before speech arrives or while the transcript is unc
   expect(mocks.verdict).toHaveBeenCalledTimes(1);
 });
 
+it("does not send silence to Whisper even if the provider would invent thank you", async () => {
+  mocks.analyze.mockReturnValue({ voiced: false, rms: 0.001, pitchHz: null });
+  mocks.transcribe.mockResolvedValue({ ok: true, text: "Thank you." });
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(18_000); });
+  await act(async () => { await result.current.endSession(); });
+  expect(mocks.transcribe).not.toHaveBeenCalled();
+  expect(mocks.verdict).not.toHaveBeenCalled();
+  expect(mocks.record).not.toHaveBeenCalled();
+  expect(result.current.transcript).toEqual([]);
+});
+
+it("resets speech evidence for each chunk and ignores a short click", async () => {
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+  expect(mocks.transcribe).toHaveBeenCalledTimes(1);
+  // One more voiced sample is not enough to admit the next six seconds.
+  await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+  mocks.analyze.mockReturnValue({ voiced: false, rms: 0, pitchHz: null });
+  await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+  expect(mocks.transcribe).toHaveBeenCalledTimes(1);
+  expect(result.current.transcript).toHaveLength(1);
+});
+
 it("coalesces transcript updates received while an AI verdict is pending", async () => {
   let release!: (value: unknown) => void;
   mocks.verdict.mockImplementationOnce(
@@ -110,7 +145,7 @@ it("coalesces transcript updates received while an AI verdict is pending", async
   );
   const { result } = renderHook(() => useLiveVoice());
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(18_000);
@@ -140,7 +175,7 @@ it("queues slow chunks and waits for the final recording before archiving withou
   );
   const { result } = renderHook(() => useLiveVoice());
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(12_000);
@@ -174,7 +209,7 @@ it("does not archive a silent session as safe", async () => {
   });
   const { result } = renderHook(() => useLiveVoice());
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await result.current.endSession();
@@ -188,7 +223,7 @@ it("archives the transcript only after opting in", async () => {
   const { result } = renderHook(() => useLiveVoice());
   act(() => result.current.setSaveTranscript(true));
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await result.current.endSession();
@@ -223,10 +258,62 @@ it("stops a microphone acquired after the component unmounts", async () => {
   expect(mocks.record).not.toHaveBeenCalled();
 });
 
+it("checks the Convex provider before acquiring the microphone", async () => {
+  mocks.status.mockResolvedValue({ ready: false, message: "Add GROQ_API_KEY in Convex." });
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); await vi.advanceTimersByTimeAsync(400); });
+  expect(mocks.start).not.toHaveBeenCalled();
+  expect(result.current.micError).toContain("GROQ_API_KEY");
+  expect(result.current.starting).toBe(false);
+});
+
+it("explains unsupported recording before acquiring the microphone", async () => {
+  vi.stubGlobal("MediaRecorder", undefined);
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); await vi.advanceTimersByTimeAsync(400); });
+  expect(mocks.start).not.toHaveBeenCalled();
+  expect(result.current.micError).toContain("cannot record");
+});
+
+it("rejects insecure microphone origins", async () => {
+  vi.stubGlobal("isSecureContext", false);
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); await vi.advanceTimersByTimeAsync(400); });
+  expect(mocks.start).not.toHaveBeenCalled();
+  expect(result.current.micError).toContain("HTTPS or localhost");
+});
+
+it("does not save a safe verdict after a transcription failure and retries the audio", async () => {
+  mocks.transcribe.mockResolvedValue({ ok: false, message: "Provider unavailable" });
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); await vi.advanceTimersByTimeAsync(400); });
+  await act(async () => { await result.current.endSession(); });
+  expect(mocks.record).not.toHaveBeenCalled();
+  expect(result.current.micError).toContain("could not be transcribed");
+  mocks.transcribe.mockResolvedValue({ ok: true, text: "hello how are you" });
+  await act(async () => { await result.current.endSession(); });
+  expect(mocks.record).toHaveBeenCalledTimes(1);
+  expect(result.current.saved).toBe(true);
+});
+
+it("does not save a safe verdict after an AI failure and allows retry", async () => {
+  mocks.verdict.mockResolvedValue({ ok: false, message: "Groq quota exceeded" });
+  const { result } = renderHook(() => useLiveVoice());
+  await act(async () => { await result.current.startMic(); await vi.advanceTimersByTimeAsync(400); });
+  await act(async () => { await result.current.endSession(); });
+  expect(mocks.record).not.toHaveBeenCalled();
+  expect(result.current.micError).toContain("quota exceeded");
+  expect(result.current.ending).toBe(false);
+  mocks.verdict.mockResolvedValue({ ok: true, verdict: "safe", confidence: 10, markers: [] });
+  await act(async () => { await result.current.endSession(); });
+  expect(mocks.record).toHaveBeenCalledTimes(1);
+  expect(result.current.saved).toBe(true);
+});
+
 it("ending an already-paused session still saves it", async () => {
   const { result } = renderHook(() => useLiveVoice());
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   await act(async () => {
     await result.current.pauseMic();
@@ -239,7 +326,7 @@ it("ending an already-paused session still saves it", async () => {
   expect(result.current.saved).toBe(true);
   expect(mocks.record).toHaveBeenCalledTimes(1);
   await act(async () => {
-    await result.current.startMic();
+    await result.current.startMic(); await vi.advanceTimersByTimeAsync(400);
   });
   expect(result.current.sessionActive).toBe(true);
   expect(result.current.saved).toBe(false);

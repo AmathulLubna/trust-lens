@@ -1,0 +1,2 @@
+# Unified diff blank context lines intentionally contain a space.
+tl_model_lcu/integration.patch text eol=lf whitespace=-blank-at-eol

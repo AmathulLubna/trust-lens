@@ -1,4 +1,8 @@
-import { ArchCard, ScoreMeter, VerdictStamp } from "@/components/dashboard/shared";
+import {
+  ArchCard,
+  ScoreMeter,
+  VerdictStamp,
+} from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -30,8 +34,76 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router";
+import LocalVoiceCheck from "@/components/dashboard/LocalVoiceCheck";
+import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const MAX_UPLOAD_BYTES = 24 * 1024 * 1024; // stay well under Whisper's 25 MB cap
+export default function UploadCheck({
+  localOnly = false,
+}: {
+  localOnly?: boolean;
+}) {
+  const [params, setParams] = useSearchParams();
+  const check = params.get("check") === "voice" ? "voice" : "scam";
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
+          Upload Check
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Analyze a recording for scam patterns using the hosted backend.
+          No local model is needed for transcript checks.
+        </p>
+      </div>
+      <Tabs
+        value={check}
+        onValueChange={(value) =>
+          setParams((previous) => {
+            const updated = new URLSearchParams(previous);
+            updated.set("check", value === "scam" ? "scam" : "voice");
+            return updated;
+          })
+        }
+      >
+        <TabsList className="mb-5 h-auto flex-wrap">
+          <TabsTrigger value="scam">Transcript &amp; scam check</TabsTrigger>
+          <TabsTrigger value="voice">{localOnly ? "Local voice model (optional)" : "Human or AI voice"}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="voice">
+          {localOnly ? <LocalVoiceCheck embedded /> : <HostedVoiceCheck embedded ledgerEnabled />}
+        </TabsContent>
+        <TabsContent value="scam">
+          {localOnly ? (
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-3">
+              <h2 className="font-semibold">
+                Use your TrustLens account for transcript checks
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                The existing transcription and scam analysis use the cloud
+                backend. This local preview has no cloud account connection.
+                Connect your Convex backend to use hosted checks without a local model.
+              </p>
+              <a
+                className="inline-block text-sm font-medium text-primary underline"
+                href="https://trustlens-vmeg.vercel.app/dashboard?tab=upload&check=scam"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open hosted TrustLens
+              </a>
+            </div>
+          ) : (
+            <CloudUploadCheck />
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // base64 must fit Convex's 16 MB argument limit
 const ACCEPTED_AUDIO_TYPES = "audio/*,.mp3,.wav,.m4a,.webm,.ogg,.aac,.flac";
 
 type AiVerdictResult =
@@ -66,7 +138,7 @@ type UploadStage = "idle" | "transcribing" | "analyzing" | "done" | "error";
  * show the transcript, scam markers, and verdict, and optionally archive
  * the result to the call ledger.
  */
-export default function UploadCheck() {
+function CloudUploadCheck() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<UploadStage>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +193,9 @@ export default function UploadCheck() {
       return;
     }
     if (f.size > MAX_UPLOAD_BYTES) {
-      setError("That file is over 24 MB — trim it or export a shorter clip and try again.");
+      setError(
+        "That file is over 8 MB — trim it or export a shorter clip and try again.",
+      );
       return;
     }
     setError(null);
@@ -162,14 +236,20 @@ export default function UploadCheck() {
       const verdictRes = (await runGroq({
         sessionId: sessionId.current,
         transcript: lines.map((l) => ({ speaker: l.speaker, text: l.text })),
-        flags: fileFlags.map((f) => ({ id: f.id, label: f.label, severity: f.severity })),
+        flags: fileFlags.map((f) => ({
+          id: f.id,
+          label: f.label,
+          severity: f.severity,
+        })),
         channel: "unknown",
       })) as AiVerdictResult;
       setAiResult(verdictRes);
       setStage("done");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Something went wrong analyzing this file.",
+        err instanceof Error
+          ? err.message
+          : "Something went wrong analyzing this file.",
       );
       setStage("error");
     }
@@ -189,7 +269,12 @@ export default function UploadCheck() {
         startedAt: Date.now(),
         durationSec: 0,
         verdict: finalVerdict,
-        riskScore: finalVerdict === "flagged" ? 85 : finalVerdict === "suspicious" ? 55 : 15,
+        riskScore:
+          finalVerdict === "flagged"
+            ? 85
+            : finalVerdict === "suspicious"
+              ? 55
+              : 15,
         behaviorScore: behaviorFromFlags(flags),
         flags,
         transcript: saveTranscript ? transcript : undefined,
@@ -207,9 +292,9 @@ export default function UploadCheck() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
-          Upload check
-        </h1>
+        <h2 className="font-display text-2xl font-bold tracking-tight">
+          Transcript &amp; scam check
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Already have the recording? Send a saved call or voice note through
           the same detection pipeline as a live call.
@@ -224,7 +309,8 @@ export default function UploadCheck() {
               tabIndex={0}
               onClick={() => fileInputRef.current?.click()}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
+                if (e.key === "Enter" || e.key === " ")
+                  fileInputRef.current?.click();
               }}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -251,7 +337,7 @@ export default function UploadCheck() {
                   Drop a call recording or voice note
                 </h3>
                 <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
-                  mp3, wav, m4a, webm, ogg, aac, or flac — up to 24 MB. Groq
+                  mp3, wav, m4a, webm, ogg, aac, or flac — up to 8 MB. Groq
                   Whisper transcribes it, then the scam-pattern agent and AI
                   verdict run the same checks as a live call.
                 </p>
@@ -295,7 +381,7 @@ export default function UploadCheck() {
                 </Button>
               </div>
 
-              {stage === "idle" && (
+              {(stage === "idle" || stage === "error" || (stage === "done" && !aiResult?.ok)) && (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
@@ -303,7 +389,9 @@ export default function UploadCheck() {
                     </span>
                     <Select
                       value={language}
-                      onValueChange={(v) => setLanguage(v as "auto" | "en" | "hi")}
+                      onValueChange={(v) =>
+                        setLanguage(v as "auto" | "en" | "hi")
+                      }
                     >
                       <SelectTrigger className="h-9 w-[140px]">
                         <SelectValue />
@@ -370,7 +458,10 @@ export default function UploadCheck() {
                       ) : (
                         <ul className="max-h-[200px] space-y-2 overflow-y-auto">
                           {flags.map((f) => (
-                            <li key={f.id} className="flex items-start gap-2 text-sm">
+                            <li
+                              key={f.id}
+                              className="flex items-start gap-2 text-sm"
+                            >
                               <ScanLine
                                 className={cn(
                                   "mt-0.5 size-4 shrink-0",
@@ -400,7 +491,9 @@ export default function UploadCheck() {
                           <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                             <Brain className="size-4" />
                           </span>
-                          <p className="text-sm font-semibold">AI verdict · Groq</p>
+                          <p className="text-sm font-semibold">
+                            AI verdict · Groq
+                          </p>
                         </div>
                         <VerdictStamp verdict={verdict} />
                       </div>
@@ -417,7 +510,10 @@ export default function UploadCheck() {
                       {aiResult.markers.length > 0 && (
                         <ul className="space-y-1.5">
                           {aiResult.markers.map((m, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm">
+                            <li
+                              key={i}
+                              className="flex items-start gap-2 text-sm"
+                            >
                               <ScanLine className="mt-0.5 size-4 shrink-0 text-primary" />
                               <span className="leading-snug">{m}</span>
                             </li>
@@ -430,7 +526,12 @@ export default function UploadCheck() {
                   {stage === "done" && aiResult?.ok && (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="flex w-full items-center gap-2 text-xs">
-                        <Switch checked={saveTranscript} onCheckedChange={setSaveTranscript} disabled={saving || saved} aria-label="Archive the uploaded transcript" />
+                        <Switch
+                          checked={saveTranscript}
+                          onCheckedChange={setSaveTranscript}
+                          disabled={saving || saved}
+                          aria-label="Archive the uploaded transcript"
+                        />
                         Archive the transcript (optional)
                       </label>
                       <span className="arch-label text-muted-foreground">
@@ -458,7 +559,12 @@ export default function UploadCheck() {
                           )}
                           {saved ? "Archived" : "Save to ledger"}
                         </Button>
-                        <Button type="button" variant="ghost" size="sm" onClick={reset}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={reset}
+                        >
                           Analyze another
                         </Button>
                       </div>
@@ -470,9 +576,9 @@ export default function UploadCheck() {
           )}
 
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
-            The file is sent to Groq Whisper for transcription and is not
-            stored by Trust Lens. Saving to your ledger stores the result;
-            the transcript is included only if you enable its archive option.
+            The file is sent to Groq Whisper for transcription and is not stored
+            by Trust Lens. Saving to your ledger stores the result; the
+            transcript is included only if you enable its archive option.
           </p>
         </div>
       </ArchCard>

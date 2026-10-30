@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "convex dev",
+    "dev:full": "convex dev --start \"vite --open\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck:tests": "tsc -p tsconfig.test.json"
+    "typecheck:tests": "tsc -p tsconfig.test.json",
+    "typecheck:lcu": "tsc -p tl_model_lcu/tsconfig.json"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.96",

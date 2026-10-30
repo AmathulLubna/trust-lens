@@ -34,13 +34,15 @@ export function ArchCard({
 export function VerdictStamp({
   verdict,
   className,
+  inconclusive = false,
 }: {
   verdict: Verdict;
   className?: string;
+  inconclusive?: boolean;
 }) {
   const meta = VERDICT_META[verdict];
   return (
-    <span className={cn("stamp", meta.tone, className)}>{meta.stamp}</span>
+    <span className={cn("stamp", meta.tone, className)}>{inconclusive ? "Inconclusive" : meta.stamp}</span>
   );
 }
 
@@ -80,7 +82,7 @@ export function ScoreMeter({
 
 export function ChannelTag({ channel }: { channel: Channel }) {
   const Icon = Phone;
-  const label = channel === "phone" ? "Phone" : "Unknown";
+  const label = channel === "phone" ? "Phone" : channel === "whatsapp" ? "WhatsApp" : "Unknown";
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
       <Icon className="size-3" />

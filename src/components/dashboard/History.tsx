@@ -152,7 +152,7 @@ function LedgerRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const hasDetails = log.flags.length > 0 || (log.transcript?.length ?? 0) > 0;
+  const hasDetails = Boolean(log.localVoice) || log.flags.length > 0 || (log.transcript?.length ?? 0) > 0;
   return (
     <>
       <button
@@ -186,15 +186,15 @@ function LedgerRow({
           </p>
         </div>
         <div className="hidden md:flex md:items-center md:gap-2">
-          <span
+          {!log.localVoice && <span
             className={`h-1.5 w-16 rounded-full ${VERDICT_META[log.verdict].bar}`}
-          />
+          />}
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {log.riskScore}
+            {log.localVoice ? "Experimental" : log.riskScore}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <VerdictStamp verdict={log.verdict} />
+          <VerdictStamp verdict={log.verdict} inconclusive={Boolean(log.localVoice)} />
           {hasDetails && (
             <ChevronDown
               className={cn(
@@ -211,12 +211,22 @@ function LedgerRow({
             {fmtDuration(log.durationSec ?? 0)}
           </span>
           <span className="font-mono text-xs text-muted-foreground">
-            risk {log.riskScore}
+            {log.localVoice ? log.localVoice.vote : `risk ${log.riskScore}`}
           </span>
         </div>
       </button>
       {expanded && hasDetails && (
         <div className="border-t border-border/60 bg-muted/30 px-5 py-4">
+          {log.localVoice && (
+            <div className="mb-4 space-y-2 text-sm">
+              <p className="font-medium">VoiceSentinel {log.localVoice.model} · {log.localVoice.vote}</p>
+              <p>Assessment: Inconclusive</p>
+              <p className="text-muted-foreground">Model score {log.localVoice.score.toFixed(5)} · Threshold {log.localVoice.threshold.toFixed(5)} · {log.localVoice.seconds}s · {log.localVoice.windows} windows</p>
+              {log.localVoice.checkTimeSec !== undefined && <p className="text-muted-foreground">Check time: {log.localVoice.checkTimeSec}s</p>}
+              <p className="text-xs text-muted-foreground">Experimental model vote, not proof of voice origin, caller identity or scam risk. Audio was not uploaded to the ledger.</p>
+              {log.circleAlertRequested && !log.notifiedCircle && <p className="text-xs text-muted-foreground">Circle alert requested; no email delivery confirmed yet.</p>}
+            </div>
+          )}
           {log.flags.length > 0 && (
             <div className="mb-4">
               <p className="arch-label mb-2 text-muted-foreground">

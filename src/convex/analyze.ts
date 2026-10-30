@@ -22,6 +22,20 @@ import {
 
 const VERDICTS = ["safe", "suspicious", "flagged"] as const;
 
+/** Check configuration before requesting microphone access; never expose keys. */
+export const voiceStatus = action({
+  args: {},
+  handler: async (ctx) => {
+    if ((await getAuthUserId(ctx)) === null) throw new Error("Not authenticated");
+    return {
+      ready: Boolean(process.env.GROQ_API_KEY),
+      message: process.env.GROQ_API_KEY
+        ? "Hosted voice analysis is ready. No local model is required."
+        : "Live voice needs GROQ_API_KEY in your Convex deployment environment variables. Add it in the Convex dashboard, then retry.",
+    };
+  },
+});
+
 /** Ask Groq to weigh the acoustic features + conversation content and return
  *  a plain-language verdict. Returns a friendly `{ ok: false }` instead of
  *  throwing when the API key is missing so the UI can guide setup. */
@@ -65,7 +79,7 @@ export const groqVerdict = action({
       return {
         ok: false,
         message:
-          "Groq is not configured yet — add GROQ_API_KEY in the project Keys UI, then try again.",
+          "Add GROQ_API_KEY in your Convex deployment environment variables, then try again.",
       };
     }
 
@@ -283,7 +297,7 @@ export const groqTranscribe = action({
       return {
         ok: false,
         message:
-          "Groq is not configured yet — add GROQ_API_KEY in the project Keys UI, then try again.",
+          "Add GROQ_API_KEY in your Convex deployment environment variables, then try again.",
       };
     }
     if (args.audioBase64.length < 64) {
@@ -291,6 +305,9 @@ export const groqTranscribe = action({
     }
     try {
       const buf = Buffer.from(args.audioBase64, "base64");
+      if (buf.length > 8 * 1024 * 1024) {
+        return { ok: false, message: "Audio must be 8 MB or smaller. Trim the recording and retry." };
+      }
       const form = new FormData();
       form.append("model", GROQ_WHISPER_MODEL);
       form.append(
@@ -298,7 +315,9 @@ export const groqTranscribe = action({
         new Blob([buf], { type: args.mimeType ?? "audio/webm" }),
         pickFilename(args.mimeType, args.filename),
       );
-      form.append("response_format", "json");
+      form.append("response_format", "verbose_json");
+      form.append("temperature", "0");
+      form.append("timestamp_granularities[]", "segment");
       const lang = args.language ? WHISPER_LANGUAGES[args.language] : undefined;
       if (lang) form.append("language", lang);
       const { data } = await axios.post(WHISPER_URL, form, {
@@ -307,7 +326,19 @@ export const groqTranscribe = action({
         maxContentLength: 35_000_000,
         timeout: 30_000,
       });
-      const text = String(data?.text ?? "").trim();
+      // Whisper can invent short phrases over silence/noise. Filter by audio
+      // confidence, not a phrase blacklist: a real "thank you" must survive.
+      const text = Array.isArray(data?.segments)
+        ? data.segments
+            .filter((segment: { no_speech_prob?: number; avg_logprob?: number; compression_ratio?: number }) =>
+              (segment.no_speech_prob ?? 0) < 0.6 &&
+              (segment.avg_logprob ?? 0) >= -1 &&
+              (segment.compression_ratio ?? 0) <= 2.4,
+            )
+            .map((segment: { text?: string }) => String(segment.text ?? "").trim())
+            .filter(Boolean)
+            .join(" ")
+        : String(data?.text ?? "").trim();
       return text ? { ok: true, text } : { ok: false, message: "No speech detected." };
     } catch (err) {
       const detail = err instanceof Error ? err.message : "Unknown Groq error";

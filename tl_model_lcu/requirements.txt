@@ -1,0 +1,3 @@
+# Reuse the existing dependency declarations and Python environment.
+-r ../ml/voice_sentinel/requirements.txt
+-r ../ml/voice_sentinel/requirements-local.txt

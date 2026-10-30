@@ -3,6 +3,7 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { VoiceAnalyzer, type VoiceMetrics } from "@/lib/voice-analysis";
 import { SerialQueue } from "@/lib/serial-queue";
+import { SpeechGate } from "@/lib/speech-gate";
 import {
   behaviorFromFlags,
   calibrateVerdict,
@@ -34,6 +35,7 @@ type Session = {
   ending: boolean;
   analyzedLineCount: number;
   language: string;
+  failedSegments: Map<Blob, string>;
 };
 
 export function useLiveVoice() {
@@ -59,6 +61,7 @@ export function useLiveVoice() {
   const acquisition = useRef(0);
   const acquiring = useRef(false);
   const listening = useRef(false);
+  const speechGate = useRef<SpeechGate | null>(null);
   const segmentTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -67,10 +70,11 @@ export function useLiveVoice() {
   );
   const runGroq = useAction(api.analyze.groqVerdict);
   const transcribe = useAction(api.analyze.groqTranscribe);
+  const checkVoice = useAction(api.analyze.voiceStatus);
   const recordCall = useMutation(api.calls.record);
 
   async function runAi(session: Session, force = false) {
-    if (session.canceled) return;
+    if (session.canceled || session.lines.length === 0) return;
     if (session.ai) {
       await session.ai;
       if (session.canceled) return;
@@ -137,6 +141,9 @@ export function useLiveVoice() {
           language: session.language,
         });
         if (session.canceled) return;
+        if (result.ok || result.message === "No speech detected.") {
+          session.failedSegments.delete(blob);
+        }
         if (result.ok && result.text?.trim()) {
           session.lines.push({
             speaker: "caller",
@@ -151,6 +158,7 @@ export function useLiveVoice() {
       })
       .catch((error) => {
         if (!session.canceled) {
+          session.failedSegments.set(blob, mime);
           setMicError(
             error instanceof Error
               ? error.message
@@ -174,6 +182,8 @@ export function useLiveVoice() {
       mime ? { mimeType: mime } : undefined,
     );
     const chunks: Blob[] = [];
+    const gate = new SpeechGate();
+    speechGate.current = gate;
     recorder.current = next;
     let resolveStopped!: () => void;
     recorderStopped.current = new Promise((resolve) => {
@@ -182,8 +192,9 @@ export function useLiveVoice() {
         if (event.data.size) chunks.push(event.data);
       };
       next.onstop = () => {
+        clearTimeout(segmentTimer.current);
         const type = chunks[0]?.type || mime || "audio/webm";
-        enqueueSegment(session, new Blob(chunks, { type }), type);
+        if (gate.hasSpeech) enqueueSegment(session, new Blob(chunks, { type }), type);
         resolve();
         if (listening.current && !session.canceled && !session.ending) {
           try {
@@ -193,6 +204,11 @@ export function useLiveVoice() {
             void pauseMic();
           }
         }
+      };
+      next.onerror = () => {
+        setMicError("Audio recording failed. Resume the microphone to try again.");
+        resolve();
+        void pauseMic();
       };
     });
     try {
@@ -219,6 +235,24 @@ export function useLiveVoice() {
     const ticket = ++acquisition.current;
     await recorderStopped.current;
     if (ticket !== acquisition.current) return;
+    try {
+      const status = await checkVoice({});
+      if (ticket !== acquisition.current) return;
+      if (!status.ready) throw new Error(status.message);
+      if (!window.isSecureContext) {
+        throw new Error("Microphone access needs HTTPS or localhost. Open TrustLens using a secure address.");
+      }
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        throw new Error("This browser cannot record microphone audio. Try a current version of Chrome, Edge, Firefox, or Safari.");
+      }
+    } catch (error) {
+      if (ticket === acquisition.current) {
+        acquiring.current = false;
+        setStarting(false);
+        setMicError(error instanceof Error ? error.message : "Could not connect to hosted voice analysis. Retry shortly.");
+      }
+      return;
+    }
     let session = current.current;
     if (!session || session.canceled) {
       session = {
@@ -233,6 +267,7 @@ export function useLiveVoice() {
         ending: false,
         analyzedLineCount: -1,
         language,
+        failedSegments: new Map(),
       };
       current.current = session;
       setTranscript([]);
@@ -240,6 +275,7 @@ export function useLiveVoice() {
       setFinalVerdict(null);
       setSaved(false);
       setPendingSegments(0);
+      setMetrics(null);
     }
     const active = session;
     const nextAnalyzer = new VoiceAnalyzer();
@@ -256,12 +292,17 @@ export function useLiveVoice() {
       setSessionActive(true);
       sampleTimer.current = setInterval(() => {
         const snapshot = nextAnalyzer.analyze();
+        speechGate.current?.observe(snapshot);
         if (snapshot.voiced) active.metrics = snapshot;
         setMetrics(snapshot);
       }, 100);
     } catch {
       nextAnalyzer.stop();
       listening.current = false;
+      clearTimeout(segmentTimer.current);
+      clearInterval(sampleTimer.current);
+      if (recorder.current?.state !== "inactive") recorder.current?.stop();
+      analyzer.current = null;
       setMicOn(false);
       setMicError(
         "Microphone unavailable. Allow microphone access and try again.",
@@ -303,7 +344,18 @@ export function useLiveVoice() {
       await pauseMic();
       await session.queue.drain();
       if (session.canceled) return;
-      if (session.lines.length === 0 && !session.metrics?.pitchHz) {
+      // Retry incomplete chunks before deciding or archiving the session.
+      for (const [blob, mime] of session.failedSegments) {
+        enqueueSegment(session, blob, mime);
+      }
+      await session.queue.drain();
+      if (session.canceled) return;
+      if (session.failedSegments.size > 0) {
+        session.ending = false;
+        setMicError("Some audio could not be transcribed. Press End Check to retry before saving a result.");
+        return;
+      }
+      if (session.lines.length === 0) {
         session.ending = false;
         setMicError(
           "No clear speech was captured. Resume the microphone and try again.",
@@ -312,6 +364,12 @@ export function useLiveVoice() {
       }
       await runAi(session, true);
       if (session.canceled) return;
+      if (!session.result?.ok) {
+        session.ending = false;
+        setMicError(session.result?.message ?? "The hosted analysis is incomplete. Press End Check to retry.");
+        return;
+      }
+      setMicError(null);
       const flags = session.lines.flatMap((l) => scamFlagsFromText(l.text));
       const m = session.metrics;
       const local = calibrateVerdict(

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VoiceSentinel — Laptop pairing</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #182235; background: #f4f6fa; }
+    body { margin: 0; padding: 48px 20px; }
+    main { max-width: 620px; margin: auto; padding: 32px; border: 1px solid #dbe1eb; border-radius: 20px; background: white; }
+    h1 { margin: 8px 0 16px; font-size: 28px; }
+    p, li { line-height: 1.65; }
+    .eyebrow { color: #4354bc; font-size: 13px; font-weight: 700; }
+    label { display: block; font-weight: 600; margin: 24px 0 8px; }
+    input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #bac4d5; border-radius: 8px; font: 14px ui-monospace, monospace; }
+    button, a { display: inline-block; margin: 16px 10px 0 0; padding: 11px 16px; border-radius: 8px; font: inherit; }
+    button { border: 0; color: white; background: #4354bc; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    a { color: #3444a8; border: 1px solid #dbe1eb; text-decoration: none; }
+    .hint { color: #58667b; font-size: 13px; }
+    #status { min-height: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">VOICESENTINEL · LAPTOP COMPANION · PORT 8765</div>
+    <h1>Pair this laptop with TrustLens</h1>
+    <p>TrustLens runs separately on port <strong>5173</strong>. This companion runs the optional local voice model on your laptop.</p>
+    <ol>
+      <li>Copy the pairing key below.</li>
+      <li>In TrustLens, open <strong>Upload Check → Local voice model (optional)</strong>.</li>
+      <li>Paste it into <strong>Pairing key from your laptop</strong>, then click <strong>Connect local detector</strong>.</li>
+    </ol>
+    <label for="pairing-key">Pairing key from this laptop</label>
+    <input id="pairing-key" readonly autocomplete="off" spellcheck="false" placeholder="Loading pairing key…">
+    <button id="copy" type="button" disabled>Copy pairing key</button>
+    <a href="http://127.0.0.1:5173/dashboard?tab=upload&amp;check=voice" target="_blank" rel="noreferrer">Open TrustLens (5173)</a>
+    <p id="status" role="status">Connecting to the companion…</p>
+    <p class="hint">Keep the companion running. Its key changes when it restarts. Allow local network access if your browser asks. TrustLens Live Guard uses hosted analysis and does not need this key.</p>
+  </main>
+  <script>
+    const field = document.getElementById('pairing-key');
+    const button = document.getElementById('copy');
+    const status = document.getElementById('status');
+    async function load() {
+      try {
+        const response = await fetch('/api/voice/pairing', { cache: 'no-store', credentials: 'omit' });
+        if (!response.ok) throw new Error('Open this page directly at http://127.0.0.1:8765/pair to get the key.');
+        field.value = (await response.json()).key;
+        button.disabled = false;
+        await refreshHealth();
+      } catch (error) { status.textContent = error.message; }
+    }
+    async function refreshHealth() {
+      try {
+        const response = await fetch('/api/voice/health', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Connection lost. Restart Start-VoiceSentinel.cmd and reload this page.');
+        const health = await response.json();
+        status.textContent = health.state === 'ready' ? 'VoiceSentinel is ready. You can connect in TrustLens.'
+          : health.state === 'error' ? health.error
+          : 'Pairing key is ready. The model is still loading; the first start can take a few minutes.';
+        if (health.state === 'warming') setTimeout(refreshHealth, 4000);
+      } catch (error) { status.textContent = error.message; }
+    }
+    button.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(field.value); button.textContent = 'Key copied'; }
+      catch { field.focus(); field.select(); status.textContent = 'Press Ctrl+C to copy the selected key.'; }
+    });
+    void load();
+  </script>
+</body>
+</html>

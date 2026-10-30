@@ -200,13 +200,13 @@ export default function Overview({
                   </p>
                 </div>
                 <ChannelTag channel={log.channel} />
-                <span
+                {!log.localVoice && <span
                   className={`h-1.5 w-14 rounded-full ${VERDICT_META[log.verdict].bar}`}
-                />
+                />}
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {log.riskScore}
+                  {log.localVoice ? "Experimental" : log.riskScore}
                 </span>
-                <VerdictStamp verdict={log.verdict} />
+                <VerdictStamp verdict={log.verdict} inconclusive={Boolean(log.localVoice)} />
               </div>
             ))}
           </div>

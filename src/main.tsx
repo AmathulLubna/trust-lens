@@ -1,4 +1,4 @@
-import '@vly-ai/integrations';
+import "@vly-ai/integrations";
 import { CookieConsent } from "@/components/CookieConsent";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -16,9 +16,10 @@ import "./index.css";
 // can fail mid-session ("Failed to fetch dynamically imported module").
 import Landing from "./pages/Landing.tsx";
 import AuthPage from "./pages/Auth.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
+import Dashboard, { LocalDashboard } from "./pages/Dashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Privacy from "./pages/Privacy.tsx";
+import Voice from "./pages/Voice.tsx";
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -85,9 +86,30 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
+function OptionalAuth({ children }: { children: React.ReactNode }) {
+  return convex ? (
+    <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>
+  ) : (
+    children
+  );
+}
 
+function CloudSetup() {
+  return (
+    <div className="mx-auto max-w-lg p-10 space-y-4">
+      <h1 className="text-xl font-semibold">
+        Cloud account features are not configured locally
+      </h1>
+      <p>Connect your existing Convex deployment to enable live voice and hosted recording checks. See CLOUD_SETUP.md for setup.</p>
+      <a className="underline" href="/dashboard?tab=upload&check=voice">
+        Open optional local voice detector
+      </a>
+    </div>
+  );
+}
 
 function RouteSyncer() {
   const location = useLocation();
@@ -112,7 +134,6 @@ function RouteSyncer() {
   return null;
 }
 
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
@@ -120,22 +141,33 @@ createRoot(document.getElementById("root")!).render(
         <ToolbarErrorBoundary>
           <VlyToolbar />
         </ToolbarErrorBoundary>
-        <ConvexAuthProvider client={convex}>
+        <OptionalAuth>
           <BrowserRouter>
             <RouteSyncer />
             <Suspense fallback={<RouteLoading />}>
               <Routes>
                 <Route path="/" element={<Landing />} />
+                <Route path="/voice" element={<Voice />} />
                 <Route
                   path="/auth"
-                  element={<AuthPage redirectAfterAuth="/dashboard" />}
+                  element={
+                    convex ? (
+                      <AuthPage redirectAfterAuth="/dashboard" />
+                    ) : (
+                      <CloudSetup />
+                    )
+                  }
                 />
                 <Route
                   path="/dashboard"
                   element={
-                    <RequireAuth>
-                      <Dashboard />
-                    </RequireAuth>
+                    convex ? (
+                      <RequireAuth>
+                        <Dashboard />
+                      </RequireAuth>
+                    ) : (
+                      <LocalDashboard />
+                    )
                   }
                 />
                 <Route path="/privacy" element={<Privacy />} />
@@ -145,7 +177,7 @@ createRoot(document.getElementById("root")!).render(
             <Toaster />
             <CookieConsent />
           </BrowserRouter>
-        </ConvexAuthProvider>
+        </OptionalAuth>
       </ThemeProvider>
     </RootErrorBoundary>
   </StrictMode>,

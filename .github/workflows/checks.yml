@@ -13,6 +13,12 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run typecheck:tests
+      - run: npm run typecheck:lcu
       - run: npm run build
         env:
           VITE_CONVEX_URL: https://example.convex.cloud
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy -r ml/voice_sentinel/requirements-local.txt
+      - run: python -m unittest discover -s tl_model_lcu -p 'test_*.py' -v
