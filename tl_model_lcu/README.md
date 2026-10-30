@@ -4,6 +4,23 @@
 [README](../README.md) for the current run commands and key configuration.
 The patch instructions below are for reusing this layer on an older checkout.
 
+## Isolated TrustLens-LCU production project
+
+The separate project is `anirudh-upadhyay:trustlens-lcu`; its production deployment
+is `outstanding-falcon-217`. Use the explicit target to preserve the original
+project selection in root `.env.local`:
+
+```powershell
+.\tl_model_lcu\Start.cmd --deployment anirudh-upadhyay:trustlens-lcu:production
+npx convex deploy --env-file tl_model_lcu/runtime/lcu.env
+```
+
+The ignored `runtime/lcu.env` on the operator's laptop contains this new
+deployment's URLs. The new project's production frontend needs
+`VITE_CONVEX_URL=https://outstanding-falcon-217.convex.cloud`; its Convex `SITE_URL`
+must match that frontend's origin. Local isolated testing uses port **5174**.
+See [DEPLOYMENT_PLAN.md](DEPLOYMENT_PLAN.md) for isolation and verification notes.
+
 This folder contains the **new connection layer only**. It stays beside the
 existing project and imports its implementation and model files by reference.
 It is not a standalone copy of TrustLens or VoiceSentinel.
@@ -121,6 +138,11 @@ Reversal also checks contexts; it does not reset unrelated work.
    A stable, already-running tunnel can be selected with
    `--url https://your-detector-host.example --sync-prod`; it must route to
    `http://127.0.0.1:8766` on this laptop.
+
+   For the separate TrustLens-LCU project, use `--deployment
+   anirudh-upadhyay:trustlens-lcu:production` instead of `--sync-prod`.
+   `--sync-prod` follows the root project's configuration, which intentionally
+   still selects the original project.
 
 4. After applying the integration, deploy the new action using the project's
    usual Convex workflow (`npx convex dev` for development or `npx convex deploy`

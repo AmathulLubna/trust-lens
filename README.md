@@ -1,5 +1,10 @@
 # TrustLens — LCU
 
+**The isolated TrustLens-LCU production backend is now configured.** Use the
+[separate LCU project instructions](#separate-lcu-project-keeps-the-original-production-project-intact)
+for that environment. The earlier development quickstart still targets the
+original project's separate development deployment.
+
 LCU connects the TrustLens web app to **one operator-hosted VoiceSentinel model**.
 Users open the website; they do not install the model, run Python, or enter a
 pairing key. Audio travels through the authenticated Convex backend to the
@@ -148,6 +153,51 @@ No separate browser pairing key is needed. Access to the model is authenticated
 server to server, and each user's jobs can only be read/cancelled by that user.
 
 ## Configure the hosted TrustLens frontend
+
+### Separate LCU project (keeps the original production project intact)
+
+The isolated Convex project is **TrustLens-LCU**, with production backend
+`https://outstanding-falcon-217.convex.cloud`.
+The existing root `.env.local` continues to select the original project.
+For this separate LCU environment, use explicit targets:
+
+```powershell
+# Run the laptop gateway and configure only the isolated LCU production backend.
+.\tl_model_lcu\Start.cmd --deployment anirudh-upadhyay:trustlens-lcu:production
+
+# Deploy to the new backend using its separate, ignored local configuration.
+npx convex deploy --env-file tl_model_lcu/runtime/lcu.env
+```
+
+For local testing against this new production backend, open a separate terminal:
+
+```powershell
+$env:VITE_CONVEX_URL = "https://outstanding-falcon-217.convex.cloud"
+$env:VITE_CONVEX_SITE_URL = "https://outstanding-falcon-217.convex.site"
+npm run dev -- --host 127.0.0.1 --port 5174 --strictPort
+```
+
+Open <http://127.0.0.1:5174>. These terminal-scoped variables leave root
+`.env.local` unchanged. For a hosted LCU frontend, set its `VITE_CONVEX_URL` to
+the new backend URL and set **the new backend's** `SITE_URL` to that frontend's
+HTTPS origin. Authentication keys were initialized separately; users/history
+are not copied from the original project. Required provider credentials can be
+reused privately, sharing those providers' quotas.
+
+The operator's ignored `tl_model_lcu/runtime/lcu.env` contains public deployment
+selectors/URLs. For another operator checkout, create it with:
+
+```dotenv
+CONVEX_DEPLOYMENT=prod:outstanding-falcon-217
+VITE_CONVEX_URL=https://outstanding-falcon-217.convex.cloud
+VITE_CONVEX_SITE_URL=https://outstanding-falcon-217.convex.site
+```
+
+Do not use bare `npx convex deploy` or `--sync-prod` for this isolated setup:
+those follow the original project's root configuration. The earlier development
+instructions continue to use that original project's development environment.
+
+### Updating the project selected by root configuration
 
 Pushing this branch publishes source code; it does not by itself deploy Convex
 or switch an existing frontend's production branch. To connect the hosted app:

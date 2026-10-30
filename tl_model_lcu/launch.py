@@ -37,7 +37,7 @@ def service_secret():
     return value
 
 
-def sync_convex(url, secret, production):
+def sync_convex(url, secret, production=False, deployment=None):
     cli = ROOT / "node_modules/convex/bin/main.js"
     node = shutil.which("node")
     if not node or not cli.is_file():
@@ -51,7 +51,9 @@ def sync_convex(url, secret, production):
             filename = Path(stream.name)
             stream.write(f"TL_MODEL_URL={url}\nTL_MODEL_SERVICE_SECRET={secret}\n")
         command = [node, str(cli), "env", "set", "--from-file", str(filename)]
-        if production:
+        if deployment:
+            command.extend(["--deployment", deployment])
+        elif production:
             command.append("--prod")
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
         if result.returncode:
@@ -66,6 +68,7 @@ def main():
     sync = parser.add_mutually_exclusive_group()
     sync.add_argument("--sync-prod", action="store_true", help="Update the two model variables on production Convex")
     sync.add_argument("--sync-dev", action="store_true", help="Update the two model variables on development Convex")
+    sync.add_argument("--deployment", help="Sync an explicit deployment, e.g. team:project:production, without changing .env.local")
     parser.add_argument("--url", help="Use an existing HTTPS tunnel instead of starting a temporary Quick Tunnel")
     args = parser.parse_args()
     if args.url:
@@ -132,9 +135,9 @@ def main():
                 raise RuntimeError("Could not establish a Quick Tunnel. Check the network and cloudflared installation.")
             url = discovered[0]
         print("Shared detector endpoint: " + url, flush=True)
-        if args.sync_prod or args.sync_dev:
-            sync_convex(url, secret, args.sync_prod)
-            print("Model connection configured on " + ("production" if args.sync_prod else "development") + " Convex.", flush=True)
+        if args.sync_prod or args.sync_dev or args.deployment:
+            sync_convex(url, secret, args.sync_prod, args.deployment)
+            print("Model connection configured on " + (args.deployment or ("production" if args.sync_prod else "development")) + " Convex.", flush=True)
         else:
             print("Convex was not changed. Restart with --sync-dev or --sync-prod to configure its connection.", flush=True)
         print("Keep this process running and the laptop awake. No user pairing key is required.", flush=True)

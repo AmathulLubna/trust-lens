@@ -43,6 +43,15 @@ class LauncherTests(unittest.TestCase):
                     launch.sync_convex("https://test.trycloudflare.com", "x" * 48, False)
                 self.assertEqual(list((Path(directory) / "runtime").iterdir()), [])
 
+    def test_explicit_deployment_sync_does_not_target_original_default_production(self):
+        def fake_run(command, **kwargs):
+            self.assertEqual(command[-2:], ["--deployment", "anirudh-upadhyay:trustlens-lcu:production"])
+            self.assertNotIn("--prod", command)
+            return subprocess.CompletedProcess(command, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(launch, "HERE", Path(directory)), patch.object(launch.subprocess, "run", side_effect=fake_run):
+                launch.sync_convex("https://test.trycloudflare.com", "x" * 48, deployment="anirudh-upadhyay:trustlens-lcu:production")
+
 
 if __name__ == "__main__":
     unittest.main()
