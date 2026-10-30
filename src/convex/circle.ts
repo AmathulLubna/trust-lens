@@ -1,6 +1,32 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
+
+const memberFields = {
+  name: v.string(),
+  phone: v.string(),
+  email: v.optional(v.string()),
+  relation: v.string(),
+  notifyOnFlag: v.boolean(),
+};
+
+function memberDetails(input: Pick<Doc<"trustedCircle">, "name" | "phone" | "email" | "relation" | "notifyOnFlag">) {
+  const details = {
+    name: input.name.trim(),
+    phone: input.phone.trim(),
+    email: input.email?.trim() || undefined,
+    relation: input.relation.trim(),
+    notifyOnFlag: input.notifyOnFlag,
+  };
+  if (!details.name || !details.phone || !details.relation) {
+    throw new ConvexError("Name, phone and relation are required.");
+  }
+  if (details.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email)) {
+    throw new ConvexError("Enter a valid email address for alerts.");
+  }
+  return details;
+}
 
 /** The user's trusted circle (family safety net). */
 export const list = query({
@@ -16,13 +42,7 @@ export const list = query({
 });
 
 export const add = mutation({
-  args: {
-    name: v.string(),
-    phone: v.string(),
-    email: v.optional(v.string()),
-    relation: v.string(),
-    notifyOnFlag: v.boolean(),
-  },
+  args: memberFields,
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) {
@@ -30,14 +50,23 @@ export const add = mutation({
     }
     const id = await ctx.db.insert("trustedCircle", {
       userId,
-      name: args.name.trim(),
-      phone: args.phone.trim(),
-      email: args.email?.trim() ? args.email.trim() : undefined,
-      relation: args.relation.trim(),
-      notifyOnFlag: args.notifyOnFlag,
+      ...memberDetails(args),
       addedAt: Date.now(),
     });
     return id;
+  },
+});
+
+/** Edit the existing record; changing details never sends a circle alert. */
+export const update = mutation({
+  args: { memberId: v.id("trustedCircle"), ...memberFields },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Not authenticated");
+    const member = await ctx.db.get(args.memberId);
+    if (!member || member.userId !== userId) throw new Error("Not found");
+    await ctx.db.patch(member._id, memberDetails(args));
+    return member._id;
   },
 });
 

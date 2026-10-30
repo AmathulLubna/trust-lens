@@ -8,13 +8,14 @@ import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { relationHints } from "@/lib/trustlens";
 import { useMutation, useQuery } from "convex/react";
-import { BellRing, Plus, ShieldAlert, Trash2, UserPlus, Users } from "lucide-react";
+import { BellRing, Pencil, Plus, ShieldAlert, Trash2, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export default function Circle() {
   const members = useQuery(api.circle.list);
   const addMember = useMutation(api.circle.add);
+  const updateMember = useMutation(api.circle.update);
   const removeMember = useMutation(api.circle.remove);
   const setNotify = useMutation(api.circle.setNotify);
 
@@ -24,29 +25,67 @@ export default function Circle() {
   const [relation, setRelation] = useState("");
   const [notifyOnFlag, setNotifyOnFlag] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Doc<"trustedCircle"> | null>(null);
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  async function handleAdd(e: React.FormEvent) {
+  function clearForm() {
+    setName("");
+    setPhone("");
+    setEmail("");
+    setRelation("");
+    setNotifyOnFlag(true);
+    setEditing(null);
+    setAdding(false);
+    setFormError("");
+  }
+
+  function openAdd() {
+    const close = adding && !editing;
+    clearForm();
+    if (!close) setAdding(true);
+  }
+
+  function openEdit(member: Doc<"trustedCircle">) {
+    setName(member.name);
+    setPhone(member.phone);
+    setEmail(member.email ?? "");
+    setRelation(member.relation);
+    setNotifyOnFlag(member.notifyOnFlag);
+    setEditing(member);
+    setFormError("");
+    setAdding(true);
+  }
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !relation.trim()) return;
+    if (busy) return;
+    if (!name.trim() || !phone.trim() || !relation.trim()) {
+      setFormError("Name, phone and relation are required.");
+      return;
+    }
     setBusy(true);
+    setFormError("");
     try {
-      await addMember({
+      const details = {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
         relation: relation.trim(),
         notifyOnFlag,
-      });
-      toast.success(`${name.trim()} added to the circle`);
-      setName("");
-      setPhone("");
-      setEmail("");
-      setRelation("");
-      setNotifyOnFlag(true);
-      setAdding(false);
+      };
+      if (editing) {
+        await updateMember({ memberId: editing._id, ...details });
+        toast.success(`${details.name}'s details updated`);
+      } else {
+        await addMember(details);
+        toast.success(`${details.name} added to the circle`);
+      }
+      clearForm();
     } catch {
-      toast.error("Could not add member");
+      const message = editing ? "Could not update member. Please try again." : "Could not add member. Please try again.";
+      setFormError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -66,7 +105,7 @@ export default function Circle() {
             transcript.
           </p>
         </div>
-        <Button type="button" className="gap-2" onClick={() => setAdding((a) => !a)}>
+        <Button type="button" className="gap-2" disabled={busy} onClick={openAdd}>
           <UserPlus className="size-4" />
           Add a member
         </Button>
@@ -74,11 +113,13 @@ export default function Circle() {
 
       {adding && (
         <form
-          onSubmit={handleAdd}
+          key={editing?._id ?? "new"}
+          aria-label={editing ? "Edit circle member" : "Add circle member"}
+          onSubmit={handleSave}
           className="rounded-2xl border border-primary/30 bg-card p-5 shadow-[0_14px_36px_-28px_rgba(37,99,235,0.35)]"
         >
           <p className="arch-label mb-4 text-primary">
-            New member · register
+            {editing ? "Edit member · details" : "New member · register"}
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
@@ -87,6 +128,8 @@ export default function Circle() {
               </Label>
               <Input
                 id="c-name"
+                autoFocus
+                disabled={busy}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Rohan"
@@ -99,6 +142,7 @@ export default function Circle() {
               </Label>
               <Input
                 id="c-phone"
+                disabled={busy}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
@@ -112,6 +156,7 @@ export default function Circle() {
               </Label>
               <Input
                 id="c-email"
+                disabled={busy}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
@@ -125,6 +170,7 @@ export default function Circle() {
               </Label>
               <Input
                 id="c-rel"
+                disabled={busy}
                 value={relation}
                 onChange={(e) => setRelation(e.target.value)}
                 placeholder="e.g. Son"
@@ -132,21 +178,23 @@ export default function Circle() {
               />
             </div>
           </div>
-          <label className="mt-4 flex cursor-pointer items-center gap-3">
-            <Switch checked={notifyOnFlag} onCheckedChange={setNotifyOnFlag} />
+          <label htmlFor="c-notify" className="mt-4 flex cursor-pointer items-center gap-3">
+            <Switch id="c-notify" checked={notifyOnFlag} onCheckedChange={setNotifyOnFlag} disabled={busy} />
             <span className="text-sm text-muted-foreground">
               Alert this member automatically on flagged calls
             </span>
           </label>
+          {formError && <p role="alert" className="mt-3 text-sm text-destructive">{formError}</p>}
           <div className="mt-4 flex gap-2">
             <Button type="submit" disabled={busy} className="gap-2">
-              <Plus className="size-4" />
-              {busy ? "Registering…" : "Register"}
+              {editing ? <Pencil className="size-4" /> : <Plus className="size-4" />}
+              {busy ? (editing ? "Saving…" : "Registering…") : (editing ? "Save changes" : "Register")}
             </Button>
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setAdding(false)}
+              disabled={busy}
+              onClick={clearForm}
             >
               Cancel
             </Button>
@@ -174,7 +222,7 @@ export default function Circle() {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button type="button" className="gap-2" onClick={() => setAdding(true)}>
+            <Button type="button" className="gap-2" onClick={openAdd}>
               <UserPlus className="size-4" />
               Add your first member
             </Button>
@@ -186,6 +234,8 @@ export default function Circle() {
             <MemberCard
               key={m._id}
               member={m}
+              disabled={busy}
+              onEdit={() => openEdit(m)}
               onRemove={async () => {
                 await removeMember({ memberId: m._id });
                 toast.success(`${m.name} removed from the circle`);
@@ -213,14 +263,18 @@ export default function Circle() {
 
 function MemberCard({
   member,
+  disabled,
+  onEdit,
   onRemove,
   onNotify,
 }: {
   member: Doc<"trustedCircle">;
+  disabled: boolean;
+  onEdit: () => void;
   onRemove: () => Promise<void>;
   onNotify: (v: boolean) => Promise<void>;
 }) {
-  const [notify, setNotify] = useState(member.notifyOnFlag);
+  const [notifying, setNotifying] = useState(false);
   const [removing, setRemoving] = useState(false);
 
   return (
@@ -237,6 +291,7 @@ function MemberCard({
             {member.relation} ·{" "}
             <span className="font-mono">{member.phone}</span>
           </p>
+          {member.email && <p className="truncate text-xs text-muted-foreground">{member.email}</p>}
           <p className="arch-label mt-0.5 text-sky-600">
             {relationHints(member.relation)} would hear the alert
           </p>
@@ -245,13 +300,26 @@ function MemberCard({
           type="button"
           variant="ghost"
           size="icon"
+          aria-label={`Edit ${member.name}`}
+          title="Edit member details"
+          disabled={disabled || removing || notifying}
+          onClick={onEdit}
+        >
+          <Pencil className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
           className="text-muted-foreground hover:text-destructive"
           aria-label={`Remove ${member.name}`}
-          disabled={removing}
+          disabled={disabled || removing || notifying}
           onClick={async () => {
             setRemoving(true);
             try {
               await onRemove();
+            } catch {
+              toast.error("Could not remove member. Please try again.");
             } finally {
               setRemoving(false);
             }
@@ -266,10 +334,18 @@ function MemberCard({
           Alert on flagged calls
         </span>
         <Switch
-          checked={notify}
-          onCheckedChange={(v) => {
-            setNotify(v);
-            void onNotify(v).catch(() => setNotify(!v));
+          aria-label={`Alert ${member.name} on flagged calls`}
+          checked={member.notifyOnFlag}
+          disabled={disabled || removing || notifying}
+          onCheckedChange={async (v) => {
+            setNotifying(true);
+            try {
+              await onNotify(v);
+            } catch {
+              toast.error("Could not update alert preference. Please try again.");
+            } finally {
+              setNotifying(false);
+            }
           }}
         />
       </label>
