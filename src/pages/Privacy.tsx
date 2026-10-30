@@ -9,7 +9,7 @@ import { Link } from "react-router";
 /** Optional: set a public privacy contact address. Left empty, the page points to GitHub issues. */
 const CONTACT_EMAIL = "";
 const ISSUES_URL = "https://github.com/AmathulLubna/trust-lens/issues";
-const LAST_UPDATED = "17 October 2026";
+const LAST_UPDATED = "30 October 2026";
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -33,7 +33,9 @@ function List({ items }: { items: ReactNode[] }) {
 }
 
 const PROCESSORS: [string, string, string][] = [
-  ["Convex", "Backend, database and sign-in sessions", "Your account, ledger, circle, checks and settings"],
+  ["Convex", "Backend, database, sign-in sessions and shared voice requests", "Your account, ledger, circle, checks, settings and audio submitted to the shared VoiceSentinel check"],
+  ["Cloudflare", "Tunnel to the shared VoiceSentinel detector", "Submitted voice audio, a user identifier and check results in transit"],
+  ["TrustLens operator (VoiceSentinel laptop)", "Experimental AI-voice classification", "Submitted audio and a user identifier; temporary decoding files; derived features and check results"],
   ["Groq", "Speech-to-text (Whisper) and AI verdicts", "Short audio chunks, transcripts, messages and numbers you check"],
   ["Google (Gemini)", "AI second opinion on messages and numbers", "Message text and number signals you submit for a check"],
   ["Freebuff OTP service", "Sign-in email delivery", "Your email address and one-time sign-in code"],
@@ -92,10 +94,16 @@ export default function Privacy() {
             ]}
           />
           <p>
-            <strong className="text-foreground">Audio is never stored by Trust Lens.</strong>{" "}
-            Acoustic scoring (pitch jitter, flatness, spectral features) runs in your browser.
-            Short audio chunks are sent to a speech-to-text provider (Groq) to produce a
-            transcript, then discarded by us. Each provider handles data under its own policy.
+            <strong className="text-foreground">Voice processing depends on the mode you choose.</strong>{" "}
+            In cloud Live Guard, acoustic scoring runs in your browser, and short audio chunks
+            are sent through Convex to Groq for speech-to-text and then discarded by us.
+            The shared VoiceSentinel modes in Upload Check and Live Guard send your audio
+            through Convex and a Cloudflare tunnel to the TrustLens operator’s laptop.
+            The laptop holds audio in memory for the check and creates a temporary file for
+            decoding, which is deleted after decoding. Derived features and results expire
+            from memory after about 15 minutes. Audio is not saved in your cloud ledger.
+            The standalone local companion processes audio on your own computer instead.
+            Each external provider handles data under its own policy.
           </p>
         </Section>
 
@@ -178,7 +186,9 @@ export default function Privacy() {
 
         <Section id="retention" title="5. Keeping and deleting your data">
           <p>
-            We keep your data until you delete it. You can wipe your entire call ledger in one
+            VoiceSentinel’s temporary processing data expires as described above. Results you
+            choose to save in your ledger remain until you delete them. We keep your account,
+            settings and saved checks until you delete them. You can wipe your entire call ledger in one
             tap from the Call Ledger, remove people from your alert circle at any time, and sign
             out to clear your session. To delete your account and everything linked to it, contact
             us (section 8).

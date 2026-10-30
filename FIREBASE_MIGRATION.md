@@ -71,13 +71,17 @@ service cloud.firestore {
 
     // Call logs: user owns their logs
     match /callLogs/{logId} {
-      allow read, write: if isOwner(resource.data.userId);
+      allow read, delete: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId;
       allow create: if isOwner(request.resource.data.userId);
     }
 
     // Trusted circle: user owns their circle
     match /trustedCircle/{memberId} {
-      allow read, write: if isOwner(resource.data.userId);
+      allow read, delete: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId;
       allow create: if isOwner(request.resource.data.userId);
     }
 
@@ -94,11 +98,15 @@ service cloud.firestore {
 
     // Number checks & message checks: user owns theirs
     match /numberChecks/{checkId} {
-      allow read, write: if isOwner(resource.data.userId);
+      allow read, delete: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId;
       allow create: if isOwner(request.resource.data.userId);
     }
     match /messageChecks/{checkId} {
-      allow read, write: if isOwner(resource.data.userId);
+      allow read, delete: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId;
       allow create: if isOwner(request.resource.data.userId);
     }
   }
