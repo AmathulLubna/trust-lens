@@ -1,5 +1,5 @@
 {
-  "name": "vite-template",
+  "name": "trustlens-lcu",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck:tests": "tsc -p tsconfig.test.json",
-    "typecheck:lcu": "tsc -p tl_model_lcu/tsconfig.json"
+    "typecheck:lcu": "tsc -p tsconfig.lcu.json",
+    "test:python": "python -m unittest discover -s . -p \"test_*.py\" -v && python -m unittest discover -s service -p \"test_*.py\" -v"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.96",

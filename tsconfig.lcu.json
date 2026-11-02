@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/lcu.tsbuildinfo"
+  },
+  "include": [
+    "frontend",
+    "convex",
+    "tests",
+    "vitest.config.ts",
+    "src/vite-env.d.ts"
+  ]
+}

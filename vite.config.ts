@@ -91,12 +91,15 @@ export default defineConfig({
   server: {
     // Bind to all interfaces so WebContainer's server-ready event fires.
     host: true,
-    port: 5173,
+    port: 5174,
     strictPort: true,
     // Model checkpoints, audio datasets and Python environments can contain
     // hundreds of thousands of files; they are unrelated to the web app.
     watch: {
-      ignored: [/(?:^|[/\\])(?:\.local|\.venv[^/\\]*|ml)(?:[/\\]|$)/],
+      ignored: [
+        /(?:^|[/\\])(?:\.local|\.venv[^/\\]*|ml)(?:[/\\]|$)/,
+        /(?:^|[/\\])(?:vendor|models|runtime)(?:[/\\]|$)/,
+      ],
     },
     // Freebuff requires HMR to remain disabled; do not re-enable.
     hmr: false,

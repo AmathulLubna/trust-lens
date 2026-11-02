@@ -16,3 +16,9 @@ __pycache__/
 # Browser verification artifacts
 output/playwright/
 .playwright-cli/
+
+# Private standalone bundle assets
+models/
+vendor/
+runtime/
+*.tsbuildinfo

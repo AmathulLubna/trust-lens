@@ -36,7 +36,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router";
 import LocalVoiceCheck from "@/components/dashboard/LocalVoiceCheck";
-import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
+import HostedVoiceCheck from "../../../frontend/HostedVoiceCheck";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function UploadCheck({

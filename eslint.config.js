@@ -8,6 +8,9 @@ export default tseslint.config(
   {
     ignores: [
       "dist",
+      "vendor/**",
+      "models/**",
+      "runtime/**",
       ".local/**",
       ".venv-audio/**",
       "ml/voice_sentinel/downloads/**",

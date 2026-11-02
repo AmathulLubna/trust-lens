@@ -11,7 +11,7 @@ import { ArchCard, ScoreMeter, VerdictStamp } from "@/components/dashboard/share
 import { api } from "@/convex/_generated/api";
 import { type VoiceMetrics } from "@/lib/voice-analysis";
 import { useLiveVoice } from "@/hooks/use-live-voice";
-import HostedVoiceCheck from "../../../tl_model_lcu/frontend/HostedVoiceCheck";
+import HostedVoiceCheck from "../../../frontend/HostedVoiceCheck";
 import { VERDICT_RANK } from "@/lib/numbers";
 import {
   behaviorFromFlags,

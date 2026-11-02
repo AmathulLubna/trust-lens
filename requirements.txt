@@ -1,0 +1,11 @@
+# Only needed when rebuilding the runtime; Start.cmd uses vendor/python.
+torch>=2.6
+transformers>=5.0,<6
+librosa>=0.11
+numpy>=1.26
+soundfile>=0.13
+fastapi==0.135.1
+starlette==1.9.0
+uvicorn>=0.34,<1
+imageio-ffmpeg==0.6.0
+httpx==0.28.1
